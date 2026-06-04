@@ -103,6 +103,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   faction: 0
   playerDirective: 0
+  synergyIdentityOverride: "\u864E\u5F0F"
+  baseTraits:
+  - {fileID: 11400000, guid: 64f2657e872b55a4ba2a4e603232f5d5, type: 2}
+  - {fileID: 11400000, guid: d5176987144359e47a72732fc4540b8f, type: 2}
   unitPrice: 10
   unitCost: 1
   unitTier: 1

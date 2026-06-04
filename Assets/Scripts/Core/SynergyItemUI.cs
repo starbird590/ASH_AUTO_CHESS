@@ -54,8 +54,20 @@ public class SynergyItemUI : MonoBehaviour
 
         if (countText != null)
         {
-            int displayThreshold = trait.GetNextDisplayThreshold(safeCount);
-            countText.text = safeCount + "/" + displayThreshold;
+            // 1. 动态将 thresholds 整型数组（例如 [2, 4, 6]）转换为 "2 / 4 / 6" 的字符串链条
+             string milestoneChain = "";
+             if (trait.thresholds != null && trait.thresholds.Length > 0)
+                {
+                string[] tempArray = new string[trait.thresholds.Length];
+                for (int i = 0; i < trait.thresholds.Length; i++)
+                    {
+                         tempArray[i] = trait.thresholds[i].ToString();
+                    }
+                milestoneChain = string.Join(" / ", tempArray);
+                }
+
+            // 2. 【核心优化】：完美对齐金铲铲排版，显示为： "当前人数   2 / 4 / 6"
+            countText.text = safeCount + "   " + milestoneChain;
             countText.color = isActive ? activeCountColor : inactiveTextColor;
         }
 
