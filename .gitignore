@@ -1,0 +1,54 @@
+# Unity generated folders
+/Library/
+/Temp/
+/Obj/
+/Logs/
+/UserSettings/
+/MemoryCaptures/
+/Recordings/
+
+# Unity build output
+/Build/
+/Builds/
+/bin/
+/ExportedObj/
+
+# Unity generated project files
+/*.csproj
+/*.sln
+/*.suo
+/*.tmp
+/*.user
+/*.userprefs
+/*.pidb
+/*.booproj
+/*.svd
+/*.pdb
+/*.mdb
+/*.opendb
+/*.VC.db
+
+# Visual Studio / Rider / VS Code local state
+/.vs/
+/.idea/
+/.vscode/
+/.vsconfig
+*.DotSettings.user
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Crash and diagnostic files
+sysinfo.txt
+*.stackdump
+
+# Asset Store tools / package caches
+/Assets/AssetStoreTools*
+
+# Unity cache server
+/cache/
+
+# Do not ignore Unity .meta files; they are required for stable asset GUIDs.
+!*.meta

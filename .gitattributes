@@ -1,0 +1,38 @@
+# Keep Unity text assets stable across Windows/macOS/Linux.
+* text=auto
+
+*.cs text eol=lf
+*.asmdef text eol=lf
+*.shader text eol=lf
+*.cginc text eol=lf
+*.hlsl text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+*.md text eol=lf
+*.meta text eol=lf
+*.unity text eol=lf
+*.prefab text eol=lf
+*.mat text eol=lf
+*.asset text eol=lf
+*.controller text eol=lf
+*.anim text eol=lf
+*.overrideController text eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.psd binary
+*.tga binary
+*.tif binary
+*.tiff binary
+*.bmp binary
+*.fbx binary
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.mp4 binary
+*.mov binary
+*.avi binary
+*.dll binary
