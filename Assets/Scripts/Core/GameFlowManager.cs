@@ -139,7 +139,15 @@ public class GameFlowManager : MonoBehaviour
             return;
         }
 
-        ChangeState(GameState.Intermission);
+        StageMapUIView mapView = StageMapUIView.Instance;
+        if (mapView != null)
+        {
+            mapView.ShowMap();
+        }
+        else
+        {
+            Debug.LogWarning("[Stage Map] Cannot show map because StageMapUIView was not found in the loaded scene.");
+        }
     }
 
     /// <summary>
@@ -672,10 +680,9 @@ public class GameFlowManager : MonoBehaviour
 
         CleanupNullPlayerUnitReferences();
 
-        if (lastBattleWasVictory)
+        if (StageMapManager.Instance != null)
         {
-            currentStageIndex++;
-            SaveGlobalData();
+            StageMapManager.Instance.MarkCurrentNodeCompleted();
         }
     }
 
@@ -690,20 +697,30 @@ public class GameFlowManager : MonoBehaviour
 
         if (AreAllEnemyBattlefieldUnitsDead())
         {
-            FinishBattle(true, defaultStageReward);
+            FinishBattle(true, CalculateBattleReward(true));
             return;
         }
 
         if (AreAllPlayerBattlefieldUnitsDead())
         {
-            FinishBattle(false, defaultDefeatReward);
+            FinishBattle(false, CalculateBattleReward(false));
             return;
         }
 
         if (battleElapsedSeconds >= battleTimeLimitSeconds)
         {
-            FinishBattle(true, defaultStageReward);
+            FinishBattle(true, CalculateBattleReward(true));
         }
+    }
+
+    private int CalculateBattleReward(bool victory)
+    {
+        if (StageMapManager.Instance != null)
+        {
+            return StageMapManager.Instance.CalculateCurrentNodeReward(victory, defaultStageReward, defaultDefeatReward);
+        }
+
+        return victory ? defaultStageReward : defaultDefeatReward;
     }
 
     private void SnapshotSurvivorHp()

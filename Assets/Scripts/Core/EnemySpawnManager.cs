@@ -3,68 +3,79 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 关卡初始敌人配置。
-/// Deployment 阶段在 gridPosition 生成预警投影，Battle 阶段在同一坐标生成真实敌人。
+/// Initial enemy spawn data for one battlefield slot.
+/// Deployment shows warning projections, Battle spawns the real enemy at the same grid position.
 /// </summary>
 [Serializable]
 public class InitialEnemyConfig
 {
-    [Tooltip("方便在 Inspector 中识别该敌人的备注名。")]
+    [Tooltip("Inspector note name for this enemy.")]
     public string enemyName = "Enemy";
 
-    [Tooltip("开战时真正生成的敌军预制体，必须挂载 UnitLogic。")]
+    [Tooltip("Enemy prefab spawned at battle start. Must have UnitLogic.")]
     public GameObject enemyPrefab;
 
-    [Tooltip("敌军出现的战场网格坐标。X=0~4，Y=0~4。")]
+    [Tooltip("Battlefield grid position. X=0~4, Y=0~4.")]
     public Vector2Int gridPosition = new Vector2Int(2, GameFlowManager.EnemyNestY);
 }
 
+[Serializable]
+public class EnemyWaveConfig
+{
+    [Tooltip("Battle wave ID rolled by MapNodeSO.")]
+    public int waveId;
+
+    [Tooltip("Initial enemies for this wave. Deployment shows warnings, Battle spawns real enemies.")]
+    public List<InitialEnemyConfig> initialEnemyConfigs = new List<InitialEnemyConfig>();
+
+    [Header("Hive Boss")]
+    [Tooltip("Hive Boss prefab for this wave. Leave empty if this wave has no boss.")]
+    public GameObject hiveBossPrefab;
+
+    [Tooltip("Hive Boss battlefield grid position.")]
+    public Vector2Int hiveGridPosition = new Vector2Int(2, GameFlowManager.EnemyNestY);
+
+    [Tooltip("Hive Boss max HP override for this wave.")]
+    public int hiveMaxHp = 800;
+
+    [Tooltip("Hive Boss armor override for this wave.")]
+    public int hiveArmor = 20;
+
+    [Tooltip("Hive Boss threat value override for this wave.")]
+    public int hiveThreatValue = 50;
+
+    [Header("Soft Enrage Spawning")]
+    [Tooltip("Enemy prefab pool periodically spawned by the Hive Boss in this wave. Prefabs must have UnitLogic.")]
+    public List<GameObject> hiveEnemyPool = new List<GameObject>();
+
+    [Tooltip("Initial spawn interval for this wave, in seconds.")]
+    public float baseSpawnInterval = 6f;
+
+    [Tooltip("Linear interval reduction per elapsed battle second. Use 0 for constant spawn speed.")]
+    public float enrageAcceleration = 0.05f;
+
+    [Tooltip("Minimum spawn interval for this wave.")]
+    public float minSpawnInterval = 1.2f;
+}
+
 /// <summary>
-/// 敌军生成生命周期管理器。
-/// 负责部署预警、开战实体化、母巢 Boss 生成，以及随战斗时间缩短间隔的软狂暴出兵。
+/// Enemy spawn lifecycle manager.
+/// Handles deployment warnings, battle start enemies, wave-specific Hive Boss spawning, and Hive-bound soft enrage spawns.
 /// </summary>
 public class EnemySpawnManager : MonoBehaviour
 {
     public static EnemySpawnManager Instance { get; private set; }
 
-    [Header("部署阶段预警")]
-    [Tooltip("静态战争迷雾预警投影预制体，例如红色问号、红点、虚影。")]
+    [Header("Deployment Warning")]
+    [Tooltip("Warning projection prefab shown during Deployment.")]
     [SerializeField] private GameObject warningProjectionPrefab;
 
-    [Tooltip("本关开局敌军配置。Deployment 阶段显示预警，Battle 阶段生成真实敌人。")]
+    [Tooltip("Fallback initial enemy configs used when no map wave is selected or matched.")]
     [SerializeField] private List<InitialEnemyConfig> initialEnemyConfigs = new List<InitialEnemyConfig>();
 
-    [Header("母巢 Boss 实体")]
-    [Tooltip("母巢 Boss 预制体，必须挂载 UnitLogic。")]
-    [SerializeField] private GameObject hiveBossPrefab;
-
-    [Tooltip("母巢所在坐标。通常位于顶部排 Y=4。")]
-    [SerializeField] private Vector2Int hiveGridPosition = new Vector2Int(2, GameFlowManager.EnemyNestY);
-
-    [Tooltip("是否由本管理器强制覆盖母巢核心属性，确保它符合不可移动建筑定位。")]
-    [SerializeField] private bool overrideHiveStats = true;
-
-    [Tooltip("强制覆盖时母巢最大生命值。")]
-    [SerializeField] private int hiveMaxHp = 800;
-
-    [Tooltip("强制覆盖时母巢护甲。")]
-    [SerializeField] private int hiveArmor = 20;
-
-    [Tooltip("强制覆盖时母巢威胁值。")]
-    [SerializeField] private int hiveThreatValue = 50;
-
-    [Header("软狂暴出兵")]
-    [Tooltip("母巢周期孵化的敌军卡池，预制体必须挂载 UnitLogic。")]
-    [SerializeField] private List<GameObject> hiveEnemyPool = new List<GameObject>();
-
-    [Tooltip("初始出兵间隔，单位：秒。")]
-    [SerializeField] private float baseSpawnInterval = 6f;
-
-    [Tooltip("随战斗已流逝时间线性缩短出兵间隔的速度。数值越高，软狂暴越快。")]
-    [SerializeField] private float enrageAcceleration = 0.05f;
-
-    [Tooltip("出兵间隔最小值，软狂暴不会突破该下限。")]
-    [SerializeField] private float minSpawnInterval = 1.2f;
+    [Header("Map Wave Configs")]
+    [Tooltip("Wave configs keyed by MapNodeSO battle wave ID.")]
+    [SerializeField] private List<EnemyWaveConfig> enemyWaveConfigs = new List<EnemyWaveConfig>();
 
     private readonly List<GameObject> warningObjects = new List<GameObject>();
     private readonly List<UnitLogic> spawnedEnemies = new List<UnitLogic>();
@@ -73,6 +84,7 @@ public class EnemySpawnManager : MonoBehaviour
     private bool spawningActive;
     private bool boundToFlowManager;
     private bool warnedEmptyHivePool;
+    private bool warnedMissingWaveConfig;
     private float spawnCountdown;
     private int lastSpawnX = -1;
 
@@ -89,6 +101,46 @@ public class EnemySpawnManager : MonoBehaviour
         }
 
         Instance = this;
+    }
+
+    private void OnValidate()
+    {
+        if (initialEnemyConfigs == null)
+        {
+            initialEnemyConfigs = new List<InitialEnemyConfig>();
+        }
+
+        if (enemyWaveConfigs == null)
+        {
+            enemyWaveConfigs = new List<EnemyWaveConfig>();
+            return;
+        }
+
+        for (int i = 0; i < enemyWaveConfigs.Count; i++)
+        {
+            EnemyWaveConfig waveConfig = enemyWaveConfigs[i];
+            if (waveConfig == null)
+            {
+                continue;
+            }
+
+            waveConfig.hiveMaxHp = Mathf.Max(1, waveConfig.hiveMaxHp);
+            waveConfig.hiveArmor = Mathf.Max(0, waveConfig.hiveArmor);
+            waveConfig.hiveThreatValue = Mathf.Max(0, waveConfig.hiveThreatValue);
+            waveConfig.baseSpawnInterval = Mathf.Max(0.1f, waveConfig.baseSpawnInterval);
+            waveConfig.enrageAcceleration = Mathf.Max(0f, waveConfig.enrageAcceleration);
+            waveConfig.minSpawnInterval = Mathf.Max(0.1f, waveConfig.minSpawnInterval);
+
+            if (waveConfig.initialEnemyConfigs == null)
+            {
+                waveConfig.initialEnemyConfigs = new List<InitialEnemyConfig>();
+            }
+
+            if (waveConfig.hiveEnemyPool == null)
+            {
+                waveConfig.hiveEnemyPool = new List<GameObject>();
+            }
+        }
     }
 
     private void Start()
@@ -118,17 +170,28 @@ public class EnemySpawnManager : MonoBehaviour
             return;
         }
 
+        EnemyWaveConfig currentWaveConfig = GetCurrentWaveConfig();
+        if (currentWaveConfig == null)
+        {
+            return;
+        }
+
+        if (hiveBoss == null || !hiveBoss.IsAlive)
+        {
+            return;
+        }
+
         spawnCountdown -= Time.deltaTime;
         if (spawnCountdown <= 0f)
         {
-            SpawnHiveEnemy();
-            spawnCountdown = GetCurrentSpawnInterval();
+            SpawnHiveEnemy(currentWaveConfig);
+            spawnCountdown = GetCurrentSpawnInterval(currentWaveConfig);
         }
     }
 
     /// <summary>
-    /// 战斗结束时由 GameFlowManager 调用。
-    /// 胜利时清理残余敌军；失败时也停止计时器，避免 Result 阶段继续出兵。
+    /// Called by GameFlowManager when battle ends.
+    /// Stops spawning and optionally clears all enemies.
     /// </summary>
     public void StopBattleLifecycle(bool clearEnemies)
     {
@@ -199,6 +262,7 @@ public class EnemySpawnManager : MonoBehaviour
     {
         spawningActive = false;
         warnedEmptyHivePool = false;
+        warnedMissingWaveConfig = false;
         ClearWarnings();
         ClearSpawnedEnemies();
         CreateWarningProjections();
@@ -206,6 +270,8 @@ public class EnemySpawnManager : MonoBehaviour
 
     private void EnterBattleSpawning()
     {
+        warnedEmptyHivePool = false;
+        warnedMissingWaveConfig = false;
         ClearWarnings();
         ClearSpawnedEnemies();
         SpawnInitialEnemies();
@@ -219,20 +285,21 @@ public class EnemySpawnManager : MonoBehaviour
     {
         if (warningProjectionPrefab == null)
         {
-            Debug.LogWarning("<color=orange>[敌军预警]</color> 未配置 warningProjectionPrefab，Deployment 阶段不会显示敌军预警投影。");
+            Debug.LogWarning("<color=orange>[Enemy Warning]</color> warningProjectionPrefab is not assigned. Deployment warnings will not be shown.");
             return;
         }
 
         GridManager gridManager = GridManager.Instance;
         if (gridManager == null || gridManager.battlefieldContainer == null)
         {
-            Debug.LogWarning("<color=orange>[敌军预警]</color> 找不到 battlefieldContainer，无法生成预警投影。");
+            Debug.LogWarning("<color=orange>[Enemy Warning]</color> Missing battlefieldContainer. Cannot create warning projections.");
             return;
         }
 
-        for (int i = 0; i < initialEnemyConfigs.Count; i++)
+        List<InitialEnemyConfig> configs = GetCurrentInitialEnemyConfigs();
+        for (int i = 0; i < configs.Count; i++)
         {
-            InitialEnemyConfig config = initialEnemyConfigs[i];
+            InitialEnemyConfig config = configs[i];
             if (config == null || !gridManager.IsInsideBattlefield(config.gridPosition))
             {
                 continue;
@@ -246,12 +313,13 @@ public class EnemySpawnManager : MonoBehaviour
 
     private void SpawnInitialEnemies()
     {
-        for (int i = 0; i < initialEnemyConfigs.Count; i++)
+        List<InitialEnemyConfig> configs = GetCurrentInitialEnemyConfigs();
+        for (int i = 0; i < configs.Count; i++)
         {
-            InitialEnemyConfig config = initialEnemyConfigs[i];
+            InitialEnemyConfig config = configs[i];
             if (config == null || config.enemyPrefab == null)
             {
-                Debug.LogWarning("<color=orange>[敌军生成]</color> 初始敌人配置缺少 enemyPrefab，已跳过。");
+                Debug.LogWarning("<color=orange>[Enemy Spawn]</color> Initial enemy config is missing enemyPrefab. Skipped.");
                 continue;
             }
 
@@ -259,45 +327,84 @@ public class EnemySpawnManager : MonoBehaviour
         }
     }
 
+    private List<InitialEnemyConfig> GetCurrentInitialEnemyConfigs()
+    {
+        EnemyWaveConfig waveConfig = GetCurrentWaveConfig();
+        if (waveConfig != null && waveConfig.initialEnemyConfigs != null && waveConfig.initialEnemyConfigs.Count > 0)
+        {
+            return waveConfig.initialEnemyConfigs;
+        }
+
+        return initialEnemyConfigs;
+    }
+
+    private EnemyWaveConfig GetCurrentWaveConfig()
+    {
+        int currentWaveId = StageMapManager.Instance != null ? StageMapManager.Instance.CurrentBattleWaveId : -1;
+        if (currentWaveId < 0 || enemyWaveConfigs == null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < enemyWaveConfigs.Count; i++)
+        {
+            EnemyWaveConfig waveConfig = enemyWaveConfigs[i];
+            if (waveConfig != null && waveConfig.waveId == currentWaveId)
+            {
+                return waveConfig;
+            }
+        }
+
+        if (!warnedMissingWaveConfig)
+        {
+            warnedMissingWaveConfig = true;
+            Debug.LogWarning("<color=orange>[Map Wave]</color> Cannot find enemy wave config for waveId=" + currentWaveId + ". Fallback initialEnemyConfigs will be used where possible.");
+        }
+
+        return null;
+    }
+
     private void SpawnHiveBoss()
     {
         hiveBoss = null;
-        if (hiveBossPrefab == null)
+        EnemyWaveConfig waveConfig = GetCurrentWaveConfig();
+        if (waveConfig == null || waveConfig.hiveBossPrefab == null)
         {
-            Debug.LogError("<color=red>[母巢生成失败]</color> 未配置 hiveBossPrefab，战斗胜利的斩首判定将无法触发。");
             return;
         }
 
-        hiveBoss = SpawnEnemyAt(hiveBossPrefab, hiveGridPosition, true);
+        hiveBoss = SpawnEnemyAt(waveConfig.hiveBossPrefab, waveConfig.hiveGridPosition, true);
         if (hiveBoss == null)
         {
             return;
         }
 
-        if (overrideHiveStats)
-        {
-            hiveBoss.maxHp = Mathf.Max(1, hiveMaxHp);
-            hiveBoss.currentHp = hiveBoss.maxHp;
-            hiveBoss.armor = Mathf.Max(0, hiveArmor);
-            hiveBoss.moveSpeed = 0f;
-            hiveBoss.threatValue = Mathf.Max(0, hiveThreatValue);
-        }
+        hiveBoss.maxHp = Mathf.Max(1, waveConfig.hiveMaxHp);
+        hiveBoss.currentHp = hiveBoss.maxHp;
+        hiveBoss.armor = Mathf.Max(0, waveConfig.hiveArmor);
+        hiveBoss.moveSpeed = 0f;
+        hiveBoss.threatValue = Mathf.Max(0, waveConfig.hiveThreatValue);
     }
 
-    private void SpawnHiveEnemy()
+    private void SpawnHiveEnemy(EnemyWaveConfig waveConfig)
     {
-        if (hiveEnemyPool.Count == 0)
+        if (waveConfig == null)
+        {
+            return;
+        }
+
+        if (waveConfig.hiveEnemyPool == null || waveConfig.hiveEnemyPool.Count == 0)
         {
             if (!warnedEmptyHivePool)
             {
                 warnedEmptyHivePool = true;
-                Debug.LogWarning("<color=orange>[软狂暴出兵]</color> hiveEnemyPool 为空，母巢无法周期出兵。");
+                Debug.LogWarning("<color=orange>[Soft Enrage Spawn]</color> Current wave hiveEnemyPool is empty. Hive periodic spawning is skipped.");
             }
 
             return;
         }
 
-        GameObject prefab = hiveEnemyPool[UnityEngine.Random.Range(0, hiveEnemyPool.Count)];
+        GameObject prefab = waveConfig.hiveEnemyPool[UnityEngine.Random.Range(0, waveConfig.hiveEnemyPool.Count)];
         if (prefab == null)
         {
             return;
@@ -312,13 +419,13 @@ public class EnemySpawnManager : MonoBehaviour
         GridManager gridManager = GridManager.Instance;
         if (gridManager == null || gridManager.battlefieldContainer == null)
         {
-            Debug.LogWarning("<color=orange>[敌军生成]</color> 找不到 battlefieldContainer，无法生成敌人。");
+            Debug.LogWarning("<color=orange>[Enemy Spawn]</color> Missing battlefieldContainer. Cannot spawn enemy.");
             return null;
         }
 
         if (!gridManager.IsInsideBattlefield(gridPosition))
         {
-            Debug.LogWarning("<color=orange>[敌军生成]</color> 坐标 " + gridPosition + " 不在 5x5 战场内，已跳过。");
+            Debug.LogWarning("<color=orange>[Enemy Spawn]</color> Grid position " + gridPosition + " is outside the 5x5 battlefield. Skipped.");
             return null;
         }
 
@@ -328,7 +435,7 @@ public class EnemySpawnManager : MonoBehaviour
         UnitLogic unit = enemyObject.GetComponent<UnitLogic>();
         if (unit == null)
         {
-            Debug.LogError("<color=red>[敌军生成失败]</color> 敌军预制体缺少 UnitLogic，已销毁实例。");
+            Debug.LogError("<color=red>[Enemy Spawn Failed]</color> Enemy prefab is missing UnitLogic. Instance destroyed.");
             Destroy(enemyObject);
             return null;
         }
@@ -368,11 +475,17 @@ public class EnemySpawnManager : MonoBehaviour
         return spawnX;
     }
 
-    private float GetCurrentSpawnInterval()
+    private float GetCurrentSpawnInterval(EnemyWaveConfig waveConfig = null)
     {
+        EnemyWaveConfig currentWaveConfig = waveConfig != null ? waveConfig : GetCurrentWaveConfig();
+        if (currentWaveConfig == null)
+        {
+            return 0.1f;
+        }
+
         float elapsed = GameFlowManager.Instance != null ? GameFlowManager.Instance.BattleElapsedSeconds : 0f;
-        float interval = baseSpawnInterval - elapsed * enrageAcceleration;
-        return Mathf.Max(minSpawnInterval, interval);
+        float interval = currentWaveConfig.baseSpawnInterval - elapsed * currentWaveConfig.enrageAcceleration;
+        return Mathf.Max(currentWaveConfig.minSpawnInterval, interval);
     }
 
     private void ClearWarnings()
