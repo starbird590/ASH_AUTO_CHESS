@@ -13,7 +13,7 @@ public class StageMapManager : MonoBehaviour
 
     [Header("Map Data")]
     [SerializeField] private List<MapNodeSO> allNodes = new List<MapNodeSO>();
-    [SerializeField] private bool loadPersistentDataOnAwake = true;
+    [SerializeField] private bool loadPersistentDataOnAwake = false;
 
     [Header("Runtime State")]
     [SerializeField] private string currentNodeId = string.Empty;

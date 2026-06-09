@@ -31,6 +31,8 @@ public class ShopManager : MonoBehaviour
 
     private const int ShopSlotCount = 5;
     private const int MaxShopLevel = 5;
+    private const int UpgradeExpPurchaseCost = 4;
+    private const int UpgradeExpPerPurchase = 4;
 
     [Header("⚙️ Economy Settings")]
     [SerializeField] private int initialFunds = 30;
@@ -49,20 +51,27 @@ public class ShopManager : MonoBehaviour
     [Header("Runtime Shop State")]
     [SerializeField] private int funds;
     [SerializeField] private int level = 1;
+    [SerializeField] private int currentExp;
     [SerializeField] private int currentTotalCost;
     [SerializeField] private GameObject[] shopSlots = new GameObject[ShopSlotCount];
     [SerializeField] private bool[] soldOutSlots = new bool[ShopSlotCount];
+    [SerializeField] private bool isShopLocked;
 
     public int Funds => funds;
     public int Level => level;
+    public int CurrentExp => currentExp;
+    public int CurrentUpgradeExpRequirement => GetCurrentUpgradeExpRequirement();
     public int CurrentTotalCost => currentTotalCost;
     public int CurrentMaxCostLimit => GetCurrentMaxCostLimit();
+    public bool IsShopLocked => isShopLocked;
     public IReadOnlyList<GameObject> ShopSlots => shopSlots;
     public IReadOnlyList<bool> SoldOutSlots => soldOutSlots;
 
     public event Action<int> FundsChanged;
     public event Action<int> LevelChanged;
+    public event Action<int, int> ExpChanged;
     public event Action<int, int> CostChanged;
+    public event Action<bool> ShopLockChanged;
     public event Action ShopRefreshed;
 
     private void Awake()
@@ -77,6 +86,7 @@ public class ShopManager : MonoBehaviour
         EnsureFixedConfigArrays();
         funds = Mathf.Max(0, initialFunds);
         level = 1;
+        currentExp = 0;
         RefreshCurrentTotalCost();
     }
 
@@ -84,6 +94,13 @@ public class ShopManager : MonoBehaviour
     {
         if (GameFlowManager.Instance != null)
         {
+            EnsureFixedConfigArrays();
+            int minimumCostLimit = maxCostLimits.Length > 0 ? maxCostLimits[0] : 5;
+            if (GameFlowManager.Instance.PopulationLimit < minimumCostLimit)
+            {
+                GameFlowManager.Instance.UpdatePopulationLimit(minimumCostLimit);
+            }
+
             funds = GameFlowManager.Instance.Funds; 
 
            // 👇【亲手加上这三行：如果是全新开局没有老存档，强制把大管家初始化为商店的1级数值】
@@ -224,10 +241,90 @@ public class ShopManager : MonoBehaviour
         return true;
     }
 
+    public void ToggleShopLock()
+    {
+        isShopLocked = !isShopLocked;
+        ShopLockChanged?.Invoke(isShopLocked);
+        Debug.Log("<color=cyan>[商店锁]</color> 当前状态: " + (isShopLocked ? "锁定" : "未锁定") + "。");
+    }
+
+    public void HandlePostBattleRefresh()
+    {
+        if (isShopLocked)
+        {
+            isShopLocked = false;
+            ShopLockChanged?.Invoke(isShopLocked);
+            Debug.Log("<color=cyan>[商店锁]</color> 已保留上一轮货架，并自动解除锁定。");
+            return;
+        }
+
+        GenerateShopSlots();
+        Debug.Log("<color=cyan>[战后刷新]</color> 新整备阶段已自动刷新商店货架。");
+    }
+
     /// <summary>
     /// 支付升级：最高 5 级，升级到 2/3/4/5 级分别读取 upgradeLevelCosts[0..3]。
     /// </summary>
     public bool UpgradeLevel()
+    {
+        if (!IsIntermissionState())
+        {
+            Debug.LogWarning("<color=orange>[Shop Upgrade Blocked]</color> Only Intermission can buy logistics exp.");
+            return false;
+        }
+
+        if (level >= MaxShopLevel)
+        {
+            currentExp = 0;
+            ExpChanged?.Invoke(currentExp, GetCurrentUpgradeExpRequirement());
+            Debug.LogWarning("<color=orange>[Shop Upgrade Blocked]</color> Shop is already at max level.");
+            return false;
+        }
+
+        if (funds < UpgradeExpPurchaseCost)
+        {
+            Debug.LogWarning("<color=orange>[Shop Upgrade Blocked]</color> Buying exp requires " + UpgradeExpPurchaseCost + " funds.");
+            return false;
+        }
+
+        SpendFunds(UpgradeExpPurchaseCost);
+        currentExp += UpgradeExpPerPurchase;
+
+        bool leveledUp = false;
+        while (level < MaxShopLevel)
+        {
+            int targetExp = GetCurrentUpgradeExpRequirement();
+            if (targetExp <= 0 || currentExp < targetExp)
+            {
+                break;
+            }
+
+            currentExp -= targetExp;
+            level++;
+            leveledUp = true;
+
+            SyncPopulationLimitToCurrentLevel();
+            LevelChanged?.Invoke(level);
+            Debug.Log("<color=green>[Shop Upgrade]</color> Shop reached Level " + level + ". Current Cost limit: " + CurrentMaxCostLimit + ".");
+        }
+
+        if (level >= MaxShopLevel)
+        {
+            currentExp = 0;
+        }
+
+        ExpChanged?.Invoke(currentExp, GetCurrentUpgradeExpRequirement());
+        RefreshCurrentTotalCost();
+
+        if (!leveledUp)
+        {
+            Debug.Log("<color=cyan>[Buy Exp]</color> Spent " + UpgradeExpPurchaseCost + " funds for " + UpgradeExpPerPurchase + " exp.");
+        }
+
+        return true;
+    }
+
+    private bool UpgradeLevelLegacy()
     {
         if (!IsIntermissionState())
         {
@@ -384,7 +481,7 @@ public class ShopManager : MonoBehaviour
             for (int i = 0; i < battlefield.childCount; i++)
             {
                 UnitLogic unit = battlefield.GetChild(i).GetComponent<UnitLogic>();
-                if (unit != null)
+                if (unit != null && unit.faction == UnitFaction.Player)
                 {
                     totalCost += Mathf.Max(0, unit.unitCost);
                 }
@@ -496,6 +593,30 @@ public class ShopManager : MonoBehaviour
             && gridManager != null
             && gridManager.battlefieldContainer != null
             && unit.transform.parent == gridManager.battlefieldContainer;
+    }
+
+    private int GetCurrentUpgradeExpRequirement()
+    {
+        EnsureFixedConfigArrays();
+        if (level >= MaxShopLevel)
+        {
+            return 0;
+        }
+
+        int index = Mathf.Clamp(level - 1, 0, upgradeLevelCosts.Length - 1);
+        return Mathf.Max(0, upgradeLevelCosts[index]);
+    }
+
+    private void SyncPopulationLimitToCurrentLevel()
+    {
+        if (GameFlowManager.Instance == null)
+        {
+            return;
+        }
+
+        EnsureFixedConfigArrays();
+        int newLimit = maxCostLimits[Mathf.Clamp(level - 1, 0, maxCostLimits.Length - 1)];
+        GameFlowManager.Instance.UpdatePopulationLimit(newLimit);
     }
 
     private int GetCurrentMaxCostLimit()

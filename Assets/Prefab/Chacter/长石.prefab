@@ -103,6 +103,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   faction: 1
   playerDirective: 1
+  synergyIdentityOverride: 
+  baseTraits: []
   unitPrice: 10
   unitCost: 1
   unitTier: 1
@@ -110,11 +112,12 @@ MonoBehaviour:
   currentHp: 100
   armor: 0
   isAirUnit: 0
+  hasSolidBodyShell: 1
   damage: 3
   attackSpeed: 1
   attackRange: 1
   isAoE: 0
-  bayonetDamage: 8
+  bayonetDamage: 1
   bayonetAttackSpeed: 0.5
   bulletPrefab: {fileID: 5052129100641712147, guid: 03219999414fcbf4c8c37a1cbcfae454, type: 3}
   bulletSpeed: 10
@@ -124,8 +127,9 @@ MonoBehaviour:
   moveSpeed: 0.5
   captureSpeed: 10
   threatValue: 5
-  maxAmmo: 6
-  currentAmmo: 6
+  ammoSpeed: 1
+  maxAmmo: 1
+  currentAmmo: 1
   isInBayonetMode: 0
   bayonetSelfDamage: 2
   bayonetSelfDamagePercent: 0

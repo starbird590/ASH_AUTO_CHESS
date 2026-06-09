@@ -52,7 +52,7 @@ public class UnitDragHandler : MonoBehaviour
         }
 
         // 与核心状态机联动：只有整备阶段新购买、且部署阶段允许移动的单位才能拖。
-        if (!flowManager.CanDragUnit(unitLogic))
+        if (unitLogic.IsVeteran || unitLogic.IsPositionLocked)
        {
             Debug.Log("=== [TEST 2] 这个不是新买的单位 ===");
             return;

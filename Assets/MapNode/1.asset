@@ -12,9 +12,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7eab02dc822ae334fac34b5fb1d4abf5, type: 3}
   m_Name: 1
   m_EditorClassIdentifier: 
-  nodeId: 
-  layerIndex: 0
-  battleWaveIds: 
+  nodeId: 002_1
+  layerIndex: 1
+  battleWaveIds: 01000000
   nextNodes: []
   baseReward: 5
   victoryBonus: 10

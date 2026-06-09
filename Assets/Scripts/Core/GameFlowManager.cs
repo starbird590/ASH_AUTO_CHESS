@@ -41,13 +41,17 @@ public class GameFlowManager : MonoBehaviour
     [SerializeField] private int funds;
     [SerializeField] private int populationLimit = 5;
     [SerializeField] private int currentStageIndex = 1;
-    [SerializeField] private bool loadPersistentDataOnAwake = true;
+    [SerializeField] private bool loadPersistentDataOnAwake = false;
 
     [Header("Battle Result")]
     [SerializeField] private int defaultStageReward = 10;
     [SerializeField] private int defaultDefeatReward = 5;
     [SerializeField] private int pendingStageReward;
     [SerializeField] private float battleTimeLimitSeconds = 90f;
+
+    [Header("Flow UI Panels")]
+    [SerializeField] private StageMapUIView stageMapView;
+    [SerializeField] private BattleResultUIManager battleResultUI;
 
     [Header("Strategic Line")]
     [SerializeField] private float strategicLineCaptureRequired = 100f;
@@ -103,6 +107,7 @@ public class GameFlowManager : MonoBehaviour
     private void Start()
     {
         OnStateEnter(currentState);
+        ShowStageMapOnStartIfNeeded();
     }
 
     private void Update()
@@ -139,14 +144,14 @@ public class GameFlowManager : MonoBehaviour
             return;
         }
 
-        StageMapUIView mapView = StageMapUIView.Instance;
-        if (mapView != null)
+        if (stageMapView != null)
         {
-            mapView.ShowMap();
+            HideBattleResultUI();
+            ShowStageMapUI();
         }
         else
         {
-            Debug.LogWarning("[Stage Map] Cannot show map because StageMapUIView was not found in the loaded scene.");
+            Debug.LogWarning("[Stage Map] Cannot show map because the Stage Map View reference is not assigned on GameFlowManager.");
         }
     }
 
@@ -229,6 +234,7 @@ public class GameFlowManager : MonoBehaviour
         unit.SetCombatEnabled(false);
         playerUnits.Add(unit);
         newlyPurchasedUnits.Add(unit);
+        TriggerTriplicateCheck();
         return true;
     }
 
@@ -255,6 +261,7 @@ public class GameFlowManager : MonoBehaviour
         unit.SetCombatEnabled(false);
         playerUnits.Add(unit);
         newlyPurchasedUnits.Add(unit);
+        TriggerTriplicateCheck();
         return true;
     }
 
@@ -392,7 +399,7 @@ public class GameFlowManager : MonoBehaviour
         }
 
         return currentState == GameState.Deployment
-            && newlyPurchasedUnits.Contains(unit)
+            && (newlyPurchasedUnits.Contains(unit) || !IsUnitOnBattlefield(unit))
             && !unit.IsVeteran
             && !unit.IsPositionLocked;
     }
@@ -585,12 +592,14 @@ public class GameFlowManager : MonoBehaviour
         DisableAllPlayerCombat();
         LockAllPlayerPositions();
         newlyPurchasedUnits.Clear();
+        ShowBattleResultUI();
     }
 
     protected virtual void ExitResult()
     {
         pendingStageReward = 0;
         hasPendingBattleResult = false;
+        HideBattleResultUI();
     }
 
     protected virtual void EnterIntermission()
@@ -599,6 +608,11 @@ public class GameFlowManager : MonoBehaviour
         DisableAllPlayerCombat();
         LockAllPlayerPositions();
         MarkSurvivorsAsVeterans();
+        if (ShopManager.Instance != null)
+        {
+            ShopManager.Instance.HandlePostBattleRefresh();
+        }
+
         if (SynergyManager.Instance != null)
         {
             SynergyManager.Instance.RecalculateSynergies();
@@ -612,13 +626,21 @@ public class GameFlowManager : MonoBehaviour
 
     protected virtual void EnterDeployment()
     {
+        HideStageMapUI();
+        HideBattleResultUI();
+
         // 部署阶段公开本关情报。EnemySpawnManager 会响应状态事件并生成敌军预警投影。
         RevealStageIntel();
 
         foreach (UnitLogic unit in playerUnits)
         {
+            if (unit == null)
+            {
+                continue;
+            }
+
             bool isNewPurchase = newlyPurchasedUnits.Contains(unit);
-            unit.SetPositionLocked(!isNewPurchase);
+            unit.SetPositionLocked(!isNewPurchase && IsUnitOnBattlefield(unit));
             unit.SetCombatEnabled(false);
         }
 
@@ -637,6 +659,9 @@ public class GameFlowManager : MonoBehaviour
 
     protected virtual void EnterBattle()
     {
+        HideStageMapUI();
+        HideBattleResultUI();
+
         battleElapsedSeconds = 0f;
         battleFinished = false;
         strategicLineCaptureProgress = 0f;
@@ -684,6 +709,199 @@ public class GameFlowManager : MonoBehaviour
         {
             StageMapManager.Instance.MarkCurrentNodeCompleted();
         }
+    }
+
+    private void TriggerTriplicateCheck()
+    {
+        bool mergedAny = false;
+        bool mergedThisPass;
+        do
+        {
+            CleanupNullPlayerUnitReferences();
+            mergedThisPass = TryMergeOneTriplicate();
+            mergedAny |= mergedThisPass;
+        }
+        while (mergedThisPass);
+
+        if (!mergedAny)
+        {
+            return;
+        }
+
+        if (GridManager.Instance != null)
+        {
+            GridManager.Instance.RefreshOccupancy();
+        }
+
+        if (ShopManager.Instance != null)
+        {
+            ShopManager.Instance.RefreshCurrentTotalCost();
+        }
+
+        if (SynergyManager.Instance != null)
+        {
+            if (currentState == GameState.Battle)
+            {
+                SynergyManager.Instance.RefreshAndApplySynergies();
+            }
+            else
+            {
+                SynergyManager.Instance.RecalculateSynergies();
+            }
+        }
+    }
+
+    private bool TryMergeOneTriplicate()
+    {
+        Dictionary<string, List<UnitLogic>> mergeGroups = new Dictionary<string, List<UnitLogic>>();
+        for (int i = 0; i < playerUnits.Count; i++)
+        {
+            UnitLogic unit = playerUnits[i];
+            if (unit == null || !unit.IsAlive)
+            {
+                continue;
+            }
+
+            string key = unit.GetDisplayName() + "|" + unit.StarLevel;
+            if (!mergeGroups.TryGetValue(key, out List<UnitLogic> group))
+            {
+                group = new List<UnitLogic>();
+                mergeGroups[key] = group;
+            }
+
+            group.Add(unit);
+            if (group.Count >= 3)
+            {
+                MergeTriplicateGroup(group);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void MergeTriplicateGroup(List<UnitLogic> group)
+    {
+        if (group == null || group.Count < 3)
+        {
+            return;
+        }
+
+        UnitLogic mergeSubject = SelectTriplicateMergeSubject(group);
+        if (mergeSubject == null)
+        {
+            return;
+        }
+
+        int sacrificesRemoved = 0;
+        for (int i = 0; i < group.Count && sacrificesRemoved < 2; i++)
+        {
+            UnitLogic sacrifice = group[i];
+            if (sacrifice == null || sacrifice == mergeSubject)
+            {
+                continue;
+            }
+
+            playerUnits.Remove(sacrifice);
+            newlyPurchasedUnits.Remove(sacrifice);
+            battleStartDeployPositions.Remove(sacrifice);
+            survivorHpSnapshot.Remove(sacrifice);
+            Destroy(sacrifice.gameObject);
+            sacrificesRemoved++;
+        }
+
+        if (sacrificesRemoved < 2)
+        {
+            return;
+        }
+
+        mergeSubject.ApplyStarUpgrade();
+        Debug.Log("<color=#FFD700>[三合一升星]</color> " + mergeSubject.GetDisplayName() + " 升至 " + mergeSubject.StarLevel + " 星。");
+    }
+
+    private UnitLogic SelectTriplicateMergeSubject(List<UnitLogic> group)
+    {
+        for (int i = 0; i < group.Count; i++)
+        {
+            UnitLogic unit = group[i];
+            if (unit != null && IsUnitOnBattlefield(unit))
+            {
+                return unit;
+            }
+        }
+
+        for (int i = 0; i < group.Count; i++)
+        {
+            if (group[i] != null)
+            {
+                return group[i];
+            }
+        }
+
+        return null;
+    }
+
+    private void ShowStageMapUI()
+    {
+        if (stageMapView == null)
+        {
+            return;
+        }
+
+        stageMapView.gameObject.SetActive(true);
+        stageMapView.ShowMap();
+    }
+
+    private void ShowStageMapOnStartIfNeeded()
+    {
+        if (currentState != GameState.Result && currentState != GameState.Intermission)
+        {
+            return;
+        }
+
+        StageMapManager stageMapManager = StageMapManager.Instance;
+        if (stageMapManager == null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(stageMapManager.CurrentNodeId) && !stageMapManager.CurrentNodeCompleted)
+        {
+            return;
+        }
+
+        HideBattleResultUI();
+        ShowStageMapUI();
+    }
+
+    private void HideStageMapUI()
+    {
+        if (stageMapView == null)
+        {
+            return;
+        }
+
+        stageMapView.gameObject.SetActive(false);
+    }
+
+    private void ShowBattleResultUI()
+    {
+        if (battleResultUI == null)
+        {
+            return;
+        }
+
+        battleResultUI.gameObject.SetActive(true);
+    }
+
+    private void HideBattleResultUI()
+    {
+        if (battleResultUI == null)
+        {
+            return;
+        }
+
+        battleResultUI.gameObject.SetActive(false);
     }
 
     private void TickBattle(float deltaTime)
@@ -781,7 +999,7 @@ public class GameFlowManager : MonoBehaviour
     {
         foreach (UnitLogic unit in playerUnits)
         {
-            if (unit != null)
+            if (unit != null && IsUnitOnBattlefield(unit))
             {
                 unit.SetVeteran(true);
             }
@@ -805,7 +1023,7 @@ public class GameFlowManager : MonoBehaviour
         {
             if (unit != null)
             {
-                unit.SetPositionLocked(true);
+                unit.SetPositionLocked(IsUnitOnBattlefield(unit));
             }
         }
     }

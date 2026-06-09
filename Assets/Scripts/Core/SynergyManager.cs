@@ -108,7 +108,6 @@ public class SynergyManager : MonoBehaviour
             {
                 continue;
             }
-
             countedUnitKeys.Add(unitKey);
             IReadOnlyList<TraitSO> traits = unit.RuntimeTraits;
             for (int traitIndex = 0; traitIndex < traits.Count; traitIndex++)

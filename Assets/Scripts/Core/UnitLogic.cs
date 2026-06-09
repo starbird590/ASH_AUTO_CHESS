@@ -53,6 +53,16 @@ public class UnitLogic : MonoBehaviour
 
     [Tooltip("该单位的稀有度阶级。1=一阶卡，2=二阶卡，3=三阶卡。")]
     public int unitTier = 1;
+    [Tooltip("单位当前星级。三张同名同星单位会自动融合为更高一星。")]
+    public int starLevel = 1;
+
+    [Header("星级独立数值矩阵")]
+    [Tooltip("1星、2星、3星对应的最大生命值绝对值。")]
+    public int[] hpStarValues = { 100, 180, 320 };
+    [Tooltip("1星、2星、3星对应的常规远程伤害绝对值。")]
+    public int[] damageStarValues = { 10, 18, 32 };
+    [Tooltip("1星、2星、3星对应的白刃近战伤害绝对值。")]
+    public int[] bayonetDamageStarValues = { 8, 14, 26 };
 
     [Header("生命属性")]
     [Tooltip("单位最大生命值。")]
@@ -117,7 +127,9 @@ public class UnitLogic : MonoBehaviour
     [Tooltip("威胁值/嘲讽值。索敌时优先攻击威胁值最高的目标。")]
     public int threatValue = 1;
 
-    [Header("弹药系统 Player Only")]
+    [Header("弹药与绝境白刃系统 (全阵营通用)")]
+    [Tooltip("单位每进行一次常规远程开火射击所需要消耗的弹药数量")]
+    public int ammoSpeed = 1;
     [Tooltip("玩家单位最大弹药量。战斗开始时 currentAmmo 会恢复到该值。")]
     public int maxAmmo = 6;
 
@@ -168,6 +180,7 @@ public class UnitLogic : MonoBehaviour
     public IReadOnlyList<TraitSO> BaseTraits => baseTraits;
     public IReadOnlyList<TraitSO> RuntimeTraits => runtimeTraits;
     public int UnitPrice => unitPrice;
+    public int StarLevel => starLevel;
     public int MaxHp => maxHp;
     public int CurrentHp => currentHp;
     public Vector2Int GridPosition => gridPosition;
@@ -211,9 +224,12 @@ public class UnitLogic : MonoBehaviour
 
     private void OnValidate()
     {
+        ammoSpeed = Mathf.Max(1, ammoSpeed);
         unitPrice = Mathf.Max(0, unitPrice);
         unitCost = Mathf.Max(0, unitCost);
         unitTier = Mathf.Clamp(unitTier, 1, 3);
+        starLevel = Mathf.Clamp(starLevel, 1, 3);
+        EnsureStarValueArrays();
         maxHp = Mathf.Max(1, maxHp);
         currentHp = Mathf.Clamp(currentHp, 0, maxHp);
         armor = Mathf.Max(0, armor);
@@ -361,6 +377,25 @@ public class UnitLogic : MonoBehaviour
         }
     }
 
+    public void ApplyStarUpgrade()
+    {
+        starLevel = Mathf.Clamp(starLevel + 1, 1, 3);
+        ApplyStarLevelStats();
+    }
+
+    public void ApplyStarLevelStats()
+    {
+        EnsureStarValueArrays();
+        int starIndex = Mathf.Clamp(starLevel, 1, 3) - 1;
+
+        maxHp = hpStarValues[starIndex];
+        currentHp = maxHp;
+        damage = damageStarValues[starIndex];
+        bayonetDamage = bayonetDamageStarValues[starIndex];
+
+        CacheSynergyBaseStatsFromCurrentValues();
+    }
+
     public bool AddRuntimeTrait(TraitSO trait)
     {
         if (trait == null || runtimeTraits.Contains(trait))
@@ -462,10 +497,48 @@ public class UnitLogic : MonoBehaviour
             return;
         }
 
+        CacheSynergyBaseStatsFromCurrentValues();
+    }
+
+    private void CacheSynergyBaseStatsFromCurrentValues()
+    {
         baseDamageForSynergy = damage;
         baseArmorForSynergy = armor;
         baseAttackSpeedForSynergy = Mathf.Max(0.01f, attackSpeed);
         hasCachedSynergyBaseStats = true;
+    }
+
+    private void EnsureStarValueArrays()
+    {
+        hpStarValues = EnsureFixedStarArray(hpStarValues, maxHp);
+        damageStarValues = EnsureFixedStarArray(damageStarValues, damage);
+        bayonetDamageStarValues = EnsureFixedStarArray(bayonetDamageStarValues, bayonetDamage);
+    }
+
+    private int[] EnsureFixedStarArray(int[] source, int fallbackValue)
+    {
+        int safeFallback = Mathf.Max(1, fallbackValue);
+        int[] result = source;
+        if (result == null || result.Length != 3)
+        {
+            int[] oldValues = result;
+            result = new int[3] { safeFallback, safeFallback, safeFallback };
+            if (oldValues != null)
+            {
+                int copyCount = Mathf.Min(oldValues.Length, result.Length);
+                for (int i = 0; i < copyCount; i++)
+                {
+                    result[i] = oldValues[i];
+                }
+            }
+        }
+
+        for (int i = 0; i < result.Length; i++)
+        {
+            result[i] = Mathf.Max(1, result[i]);
+        }
+
+        return result;
     }
 
     private void NotifyRuntimeTraitsChanged()
@@ -673,10 +746,7 @@ public class UnitLogic : MonoBehaviour
         }
 
         UnitLogic targetForThisShot = lockedTarget;
-        if (faction == UnitFaction.Player)
-        {
-            ConsumeAmmoAndUpdateBayonetState();
-        }
+        ConsumeAmmoAndUpdateBayonetState();
 
         FireBulletAtTarget(targetForThisShot);
         attackCooldownTimer = 1f / Mathf.Max(0.01f, attackSpeed);
@@ -711,8 +781,8 @@ public class UnitLogic : MonoBehaviour
             return;
         }
 
-        currentAmmo = Mathf.Max(0, currentAmmo - 1);
-        if (currentAmmo == 0)
+        currentAmmo = Mathf.Max(0, currentAmmo - Mathf.Max(1, ammoSpeed));
+        if (currentAmmo == 0 || currentAmmo < Mathf.Max(1, ammoSpeed))
         {
             EnterBayonetMode();
             lockedTarget = null;
@@ -740,11 +810,12 @@ public class UnitLogic : MonoBehaviour
 
     private void TryTriggerFirstBayonetStrike(UnitLogic target)
     {
+        // 彻底解耦：只要自身处于白刃战状态且存活，物理碰撞到的目标只要不等于自身阵营且非中立，即视为合法敌对目标
         if (target == null
-            || faction != UnitFaction.Player
             || !isInBayonetMode
             || !IsAlive
-            || target.faction != UnitFaction.Enemy
+            || target.faction == faction
+            || target.faction == UnitFaction.Neutral
             || !target.IsAlive)
         {
             return;
@@ -946,7 +1017,7 @@ public class UnitLogic : MonoBehaviour
         if (IsBattlefieldCellBlocked(nextCell))
         {
             UnitLogic blocker = GetUnitAtBattlefieldCell(nextCell);
-            if (blocker != null && isInBayonetMode && faction == UnitFaction.Player && blocker.faction == UnitFaction.Enemy && blocker.IsAlive)
+            if (blocker != null && isInBayonetMode && blocker.faction != faction && blocker.faction != UnitFaction.Neutral && blocker.IsAlive)
             {
                 MoveTowardBayonetContact(blocker, deltaTime);
                 return;
@@ -964,7 +1035,7 @@ public class UnitLogic : MonoBehaviour
                         return;
                     }
 
-                    if (alternateBlocker.faction != faction && isInBayonetMode && faction == UnitFaction.Player && alternateBlocker.faction == UnitFaction.Enemy && alternateBlocker.IsAlive)
+                    if (alternateBlocker.faction != faction && isInBayonetMode && alternateBlocker.faction != UnitFaction.Neutral && alternateBlocker.IsAlive)
                     {
                         MoveTowardBayonetContact(alternateBlocker, deltaTime);
                         return;
@@ -987,7 +1058,7 @@ public class UnitLogic : MonoBehaviour
 
     private void MoveTowardBayonetContact(UnitLogic blocker, float deltaTime)
     {
-        if (blocker == null || !blocker.IsAlive || blocker.faction != UnitFaction.Enemy)
+        if (blocker == null || !blocker.IsAlive || blocker.faction == faction || blocker.faction == UnitFaction.Neutral)
         {
             return;
         }
@@ -1005,6 +1076,7 @@ public class UnitLogic : MonoBehaviour
         transform.localPosition = Vector3.MoveTowards(transform.localPosition, blockerLocalPosition, moveSpeed * deltaTime);
 
         // 前倾突刺只是为了让 Collider 发生真实重叠，不能让逻辑网格被局部坐标四舍五入污染。
+        SetGridPosition(logicalGridPosition);
         SetGridPosition(logicalGridPosition);
     }
 

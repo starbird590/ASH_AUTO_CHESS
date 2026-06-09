@@ -14,8 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   nodeId: 001_1
   layerIndex: 0
-  battleWaveIds: 000000000000000000000000
-  nextNodes: []
+  battleWaveIds: 00000000
+  nextNodes:
+  - {fileID: 11400000, guid: ae8ff9ee87b01ca429cb1ef40659e19d, type: 2}
   baseReward: 5
   victoryBonus: 10
   defeatBonus: 3
