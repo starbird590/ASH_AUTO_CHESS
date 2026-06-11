@@ -3,7 +3,7 @@ using UnityEngine.UI;
 
 public class ShopSlotUI : MonoBehaviour
 {
-    [Header("⚙️ 货架编号设置")]
+    [Header("Shop Slot")]
     [SerializeField] private int slotIndex = 0;
 
     private Text buttonText;
@@ -19,6 +19,7 @@ public class ShopSlotUI : MonoBehaviour
         {
             ShopManager.Instance.ShopRefreshed += UpdateSlotDisplay;
         }
+
         UpdateSlotDisplay();
     }
 
@@ -32,36 +33,35 @@ public class ShopSlotUI : MonoBehaviour
 
     private void UpdateSlotDisplay()
     {
-        if (ShopManager.Instance == null || buttonText == null) return;
+        if (ShopManager.Instance == null || buttonText == null)
+        {
+            return;
+        }
 
         if (ShopManager.Instance.SoldOutSlots[slotIndex])
         {
-            buttonText.text = "<color=red>【已售罄】</color>";
+            buttonText.text = "<color=red>[Sold]</color>";
             return;
         }
 
-        GameObject unitPrefab = ShopManager.Instance.ShopSlots[slotIndex];
-        if (unitPrefab == null)
+        UnitLogicDataSO unitData = ShopManager.Instance.GetShopSlotUnitData(slotIndex);
+        if (unitData == null)
         {
-            buttonText.text = "【空置】";
+            buttonText.text = "[Empty]";
             return;
         }
 
-        UnitLogic logic = unitPrefab.GetComponent<UnitLogic>();
-        if (logic != null)
-        {
-            // 🌟 动态写入：几阶卡、Unity文件名、原价、占用Cost数
-            buttonText.text = $"{logic.unitTier}阶•{unitPrefab.name}\n价格: {logic.unitPrice}元 (Cost:{logic.unitCost})";
-        }
+        string displayName = string.IsNullOrEmpty(unitData.chessName) ? unitData.chessId : unitData.chessName;
+        buttonText.text = unitData.unitRare + " Cost " + displayName + "\nPrice: " + unitData.unitPrice + " (Pop: " + unitData.unitCost + ")";
     }
 
     private void Update()
     {
         if (ShopManager.Instance != null && ShopManager.Instance.SoldOutSlots[slotIndex])
         {
-            if (buttonText != null && buttonText.text != "<color=red>【已售罄】</color>")
+            if (buttonText != null && buttonText.text != "<color=red>[Sold]</color>")
             {
-                buttonText.text = "<color=red>【已售罄】</color>";
+                buttonText.text = "<color=red>[Sold]</color>";
             }
         }
     }

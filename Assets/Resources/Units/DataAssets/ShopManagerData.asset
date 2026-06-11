@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3aaacc869f0ca9e49965e4eb7c6ba936, type: 3}
+  m_Name: ShopManagerData
+  m_EditorClassIdentifier: 
+  poolConfigs:
+  - unitRare: 1
+    cardCount: 29
+  - unitRare: 2
+    cardCount: 22
+  - unitRare: 3
+    cardCount: 18
+  - unitRare: 4
+    cardCount: 12
+  - unitRare: 5
+    cardCount: 10
+  probabilityConfigs:
+  - shopLevel: 1
+    weightT1: 100
+    weightT2: 0
+    weightT3: 0
+    weightT4: 0
+    weightT5: 0
+  - shopLevel: 2
+    weightT1: 80
+    weightT2: 20
+    weightT3: 0
+    weightT4: 0
+    weightT5: 0
+  - shopLevel: 3
+    weightT1: 55
+    weightT2: 35
+    weightT3: 10
+    weightT4: 0
+    weightT5: 0
+  - shopLevel: 4
+    weightT1: 30
+    weightT2: 40
+    weightT3: 25
+    weightT4: 5
+    weightT5: 0
+  - shopLevel: 5
+    weightT1: 15
+    weightT2: 25
+    weightT3: 35
+    weightT4: 20
+    weightT5: 5

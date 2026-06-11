@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f33b239c613ade24a9d800c37ca04449, type: 3}
+  m_Name: E4083
+  m_EditorClassIdentifier: 
+  chessId: E4083
+  chessName: "\u5C5E\u6027\u63D0\u5347-BOSS"
+  unionId: 
+  faction: 1
+  playerDirective: 0
+  unitCost: 0
+  unitPrice: 0
+  unitRare: 4
+  unitTier: 3
+  unitType: 0
+  attackType: 3
+  baseHp: 435
+  baseArmor: 5
+  bayonetArmor: 3
+  critRate: 0.05
+  critDamage: 1.5
+  fireDamage: 17
+  fireRate: 0.8
+  fireSpeed: 9.9
+  fireRange: 3
+  ammo: 33
+  ammoSpeed: 1
+  firePenPct: 0
+  firePenFlat: 0
+  damageAoe: 0
+  bayonetId: 
+  bayonetDamage: 5
+  bayonetCost: '[5,0.01]'
+  bayonetSpeed: 1.1
+  bayonetRange: 1
+  bayonetPenPct: 0
+  bayonetPenFlat: 0
+  moveSpeed: 0.8
+  captureSpeed: 0.5
+  threatValue: 44

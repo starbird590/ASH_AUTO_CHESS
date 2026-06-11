@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f33b239c613ade24a9d800c37ca04449, type: 3}
+  m_Name: A5121
+  m_EditorClassIdentifier: 
+  chessId: A5121
+  chessName: "\u7A7A\u4E2D-\u5168\u80FD\u5236\u7A7A-\u68CB\u5B50A\u2605"
+  unionId: 
+  faction: 0
+  playerDirective: 0
+  unitCost: 1
+  unitPrice: 5
+  unitRare: 5
+  unitTier: 1
+  unitType: 1
+  attackType: 3
+  baseHp: 203
+  baseArmor: 4
+  bayonetArmor: 0
+  critRate: 0.05
+  critDamage: 1.5
+  fireDamage: 27
+  fireRate: 0.9
+  fireSpeed: 10
+  fireRange: 5
+  ammo: 22
+  ammoSpeed: 1
+  firePenPct: 0
+  firePenFlat: 0
+  damageAoe: 0
+  bayonetId: 
+  bayonetDamage: 0
+  bayonetCost: '[0,0]'
+  bayonetSpeed: 0
+  bayonetRange: 0
+  bayonetPenPct: 0
+  bayonetPenFlat: 0
+  moveSpeed: 1.6
+  captureSpeed: 0
+  threatValue: 33

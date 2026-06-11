@@ -1,26 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
-
-/// <summary>
-/// 商店等级概率矩阵。
-/// 每个数组元素对应一个商店等级，策划可以在 Inspector 中直接调整各阶卡出现权重。
-/// </summary>
-[Serializable]
-public class ShopLevelWeight
-{
-    public string levelName;
-
-    [Tooltip("抽取1阶卡的权重百分比")]
-    public float tier1Weight;
-
-    [Tooltip("抽取2阶卡的权重百分比")]
-    public float tier2Weight;
-
-    [Tooltip("抽取3阶卡的权重百分比")]
-    public float tier3Weight;
-}
-
 /// <summary>
 /// 商店与经济平衡控制器。
 /// 负责资金、刷新、升级、概率抽卡、备战席落座、退役变现、补编修理，以及当前上阵 Cost 统计。
@@ -42,11 +23,14 @@ public class ShopManager : MonoBehaviour
     [SerializeField] private int[] upgradeLevelCosts = { 10, 15, 20, 25 };
     [SerializeField] private int[] maxCostLimits = { 5, 7, 9, 11, 13 };
 
-    [Header("🎰 Probability Matrix (5个等级的抽卡概率配置表)")]
-    [SerializeField] private ShopLevelWeight[] levelWeights = new ShopLevelWeight[5];
-
     [Header("📦 Card Pool Settings")]
-    public List<GameObject> unitSupplyPool = new List<GameObject>();
+    public List<string> unitSupplyPool = new List<string>();
+
+    [SerializeField] private bool buildSupplyPoolOnAwake = true;
+
+    private readonly Dictionary<string, int> unitRemainingCounts = new Dictionary<string, int>();
+    private readonly Dictionary<string, UnitLogicDataSO> unitDataByChessId = new Dictionary<string, UnitLogicDataSO>();
+    private ShopManagerDataSO shopManagerData;
 
     [Header("Runtime Shop State")]
     [SerializeField] private int funds;
@@ -54,6 +38,7 @@ public class ShopManager : MonoBehaviour
     [SerializeField] private int currentExp;
     [SerializeField] private int currentTotalCost;
     [SerializeField] private GameObject[] shopSlots = new GameObject[ShopSlotCount];
+    [SerializeField] private string[] shopSlotChessIds = new string[ShopSlotCount];
     [SerializeField] private bool[] soldOutSlots = new bool[ShopSlotCount];
     [SerializeField] private bool isShopLocked;
 
@@ -65,7 +50,9 @@ public class ShopManager : MonoBehaviour
     public int CurrentMaxCostLimit => GetCurrentMaxCostLimit();
     public bool IsShopLocked => isShopLocked;
     public IReadOnlyList<GameObject> ShopSlots => shopSlots;
+    public IReadOnlyList<string> ShopSlotChessIds => shopSlotChessIds;
     public IReadOnlyList<bool> SoldOutSlots => soldOutSlots;
+    public IReadOnlyDictionary<string, int> UnitRemainingCounts => unitRemainingCounts;
 
     public event Action<int> FundsChanged;
     public event Action<int> LevelChanged;
@@ -73,6 +60,125 @@ public class ShopManager : MonoBehaviour
     public event Action<int, int> CostChanged;
     public event Action<bool> ShopLockChanged;
     public event Action ShopRefreshed;
+
+    public void BuildSupplyPool()
+    {
+        unitSupplyPool.Clear();
+        unitRemainingCounts.Clear();
+        unitDataByChessId.Clear();
+
+        EnsureShopManagerDataLoaded();
+        if (shopManagerData == null)
+        {
+            Debug.LogWarning("[ShopManager] Missing Resources/Units/DataAssets/ShopManagerData.asset. Card counts will default to 0.");
+        }
+
+        List<UnitLogicDataSO> allUnitData = CollectAllUnitData();
+        HashSet<string> seenChessIds = new HashSet<string>();
+        for (int i = 0; i < allUnitData.Count; i++)
+        {
+            UnitLogicDataSO unitData = allUnitData[i];
+            if (unitData == null)
+            {
+                continue;
+            }
+
+            string chessId = ReadStringValue(unitData, "chessId", "ChessId", "chessID", "ChessID");
+            if (string.IsNullOrEmpty(chessId))
+            {
+                chessId = unitData.name;
+            }
+
+            int faction = ReadIntValue(unitData, -1, "faction", "Faction");
+            int unitTier = ReadIntValue(unitData, 0, "unitTier", "UnitTier");
+            int unitPrice = ReadIntValue(unitData, 0, "unitPrice", "UnitPrice");
+            int unitRare = ReadIntValue(unitData, 0, "unitRare", "UnitRare");
+
+            if (faction != 0 || unitTier != 1 || unitPrice <= 0 || !seenChessIds.Add(chessId))
+            {
+                continue;
+            }
+
+            int initialCount = GetInitialCardCount(unitRare);
+            unitSupplyPool.Add(chessId);
+            unitRemainingCounts[chessId] = initialCount;
+            unitDataByChessId[chessId] = unitData;
+        }
+
+        Debug.Log("[ShopManager] Supply pool built. Unit types: " + unitSupplyPool.Count + ".");
+    }
+
+    public bool TryDrawUnit(string chessId)
+    {
+        if (string.IsNullOrEmpty(chessId))
+        {
+            return false;
+        }
+
+        int remainingCount;
+        if (!unitRemainingCounts.TryGetValue(chessId, out remainingCount) || remainingCount <= 0)
+        {
+            return false;
+        }
+
+        unitRemainingCounts[chessId] = remainingCount - 1;
+        return true;
+    }
+
+    public void ReturnUnitToPool(string chessId)
+    {
+        if (string.IsNullOrEmpty(chessId))
+        {
+            return;
+        }
+
+        int remainingCount;
+        unitRemainingCounts.TryGetValue(chessId, out remainingCount);
+        unitRemainingCounts[chessId] = Mathf.Max(0, remainingCount) + 1;
+    }
+
+    public int GetRemainingCount(string chessId)
+    {
+        int remainingCount;
+        return unitRemainingCounts.TryGetValue(chessId, out remainingCount) ? remainingCount : 0;
+    }
+
+    private int GetInitialCardCount(int unitRare)
+    {
+        if (shopManagerData == null)
+        {
+            return 0;
+        }
+
+        IReadOnlyList<ShopPoolConfig> poolConfigs = shopManagerData.PoolConfigs;
+        for (int i = 0; i < poolConfigs.Count; i++)
+        {
+            ShopPoolConfig config = poolConfigs[i];
+            if (config != null && config.unitRare == unitRare)
+            {
+                return Mathf.Max(0, config.cardCount);
+            }
+        }
+
+        return 0;
+    }
+
+    public UnitLogicDataSO GetShopSlotUnitData(int slotIndex)
+    {
+        if (!IsValidShopSlot(slotIndex))
+        {
+            return null;
+        }
+
+        string chessId = shopSlotChessIds[slotIndex];
+        if (string.IsNullOrEmpty(chessId))
+        {
+            return null;
+        }
+
+        UnitLogicDataSO unitData;
+        return unitDataByChessId.TryGetValue(chessId, out unitData) ? unitData : null;
+    }
 
     private void Awake()
     {
@@ -84,6 +190,11 @@ public class ShopManager : MonoBehaviour
 
         Instance = this;
         EnsureFixedConfigArrays();
+        if (buildSupplyPoolOnAwake)
+        {
+            BuildSupplyPool();
+        }
+
         funds = Mathf.Max(0, initialFunds);
         level = 1;
         currentExp = 0;
@@ -154,17 +265,17 @@ public class ShopManager : MonoBehaviour
             return false;
         }
 
-        GameObject unitPrefab = shopSlots[slotIndex];
-        if (unitPrefab == null)
+        string chessId = shopSlotChessIds[slotIndex];
+        if (string.IsNullOrEmpty(chessId))
         {
             Debug.LogWarning("<color=orange>[商店拦截]</color> 该货架为空，无法购买。");
             return false;
         }
 
-        UnitLogic prefabLogic = unitPrefab.GetComponent<UnitLogic>();
-        if (prefabLogic == null)
+        UnitLogicDataSO unitData = GetShopSlotUnitData(slotIndex);
+        if (unitData == null)
         {
-            Debug.LogError("<color=red>[商店配置错误]</color> 预制体缺少 UnitLogic，无法读取价格/阶级/Cost。");
+            Debug.LogError("<color=red>[商店配置错误]</color> 找不到货架单位数据: " + chessId + "。");
             return false;
         }
 
@@ -182,21 +293,29 @@ public class ShopManager : MonoBehaviour
             return false;
         }
 
-        if (funds < prefabLogic.unitPrice)
+        if (funds < unitData.unitPrice)
         {
             Debug.LogWarning("<color=orange>[商店拦截]</color> 资金不足，无法购买该单位。");
             return false;
         }
 
-        SpendFunds(prefabLogic.unitPrice);
+        if (!TryDrawUnit(chessId))
+        {
+            Debug.LogWarning("<color=orange>[商店拦截]</color> 公共牌库中该单位已经被抽空: " + chessId + "。");
+            return false;
+        }
 
-        GameObject unitObject = Instantiate(unitPrefab);
-        UnitLogic unit = unitObject.GetComponent<UnitLogic>();
+        SpendFunds(unitData.unitPrice);
+
+        UnitDataManager dataManager = GetUnitDataManagerInstance();
+        UnitLogic unit = dataManager != null
+            ? dataManager.SpawnUnitOnBoard(chessId, Vector3.zero, UnitFaction.Player)
+            : null;
         if (unit == null)
         {
-            AddFunds(prefabLogic.unitPrice);
-            Destroy(unitObject);
-            Debug.LogError("<color=red>[商店配置错误]</color> 实例化后的单位缺少 UnitLogic，已自动退款。");
+            ReturnUnitToPool(chessId);
+            AddFunds(unitData.unitPrice);
+            Debug.LogError("<color=red>[商店配置错误]</color> UnitDataManager 生成单位失败，已自动退款: " + chessId + "。");
             return false;
         }
 
@@ -205,8 +324,9 @@ public class ShopManager : MonoBehaviour
         GameFlowManager flowManager = GameFlowManager.Instance;
         if (flowManager != null && !flowManager.RegisterPurchasedUnitFromShop(unit))
         {
-            AddFunds(prefabLogic.unitPrice);
-            Destroy(unitObject);
+            ReturnUnitToPool(chessId);
+            AddFunds(unitData.unitPrice);
+            Destroy(unit.gameObject);
             gridManager.RefreshOccupancy();
             Debug.LogWarning("<color=orange>[商店回滚]</color> 状态机拒绝登记新单位，已销毁单位并退款。");
             return false;
@@ -214,7 +334,7 @@ public class ShopManager : MonoBehaviour
 
         soldOutSlots[slotIndex] = true;
         RefreshCurrentTotalCost();
-        Debug.Log("<color=green>[购买成功]</color> 单位已落座备战席 X=" + emptyReservePos.x + "，花费 " + prefabLogic.unitPrice + "。");
+        Debug.Log("<color=green>[购买成功]</color> 单位已落座备战席 X=" + emptyReservePos.x + "，花费 " + unitData.unitPrice + "。");
         return true;
     }
 
@@ -388,6 +508,7 @@ public class ShopManager : MonoBehaviour
         }
 
         AddFunds(refundAmount);
+        ReturnUnitToPool(GetPoolChessIdFromUnit(unit));
         unit.ClearGridPosition();
         unit.transform.SetParent(null);
         Destroy(unit.gameObject);
@@ -492,6 +613,228 @@ public class ShopManager : MonoBehaviour
         CostChanged?.Invoke(currentTotalCost, CurrentMaxCostLimit);
     }
 
+    private List<UnitLogicDataSO> CollectAllUnitData()
+    {
+        List<UnitLogicDataSO> result = new List<UnitLogicDataSO>();
+        UnitDataManager dataManager = GetUnitDataManagerInstance();
+        if (dataManager != null)
+        {
+            CollectUnitDataFromObject(dataManager, result);
+        }
+
+        UnitLogicDataSO[] resourceData = Resources.LoadAll<UnitLogicDataSO>("Units/DataAssets");
+        for (int i = 0; i < resourceData.Length; i++)
+        {
+            AddUnitDataIfMissing(result, resourceData[i]);
+        }
+
+        return result;
+    }
+
+    private UnitDataManager GetUnitDataManagerInstance()
+    {
+        Type managerType = typeof(UnitDataManager);
+        BindingFlags staticFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        PropertyInfo instanceProperty = managerType.GetProperty("Instance", staticFlags);
+        if (instanceProperty != null && managerType.IsAssignableFrom(instanceProperty.PropertyType))
+        {
+            UnitDataManager instance = instanceProperty.GetValue(null, null) as UnitDataManager;
+            if (instance != null)
+            {
+                return instance;
+            }
+        }
+
+        FieldInfo instanceField = managerType.GetField("Instance", staticFlags);
+        if (instanceField != null && managerType.IsAssignableFrom(instanceField.FieldType))
+        {
+            UnitDataManager instance = instanceField.GetValue(null) as UnitDataManager;
+            if (instance != null)
+            {
+                return instance;
+            }
+        }
+
+        return FindObjectOfType<UnitDataManager>();
+    }
+
+    private void CollectUnitDataFromObject(object source, List<UnitLogicDataSO> result)
+    {
+        if (source == null)
+        {
+            return;
+        }
+
+        Type sourceType = source.GetType();
+        BindingFlags instanceFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+        PropertyInfo[] properties = sourceType.GetProperties(instanceFlags);
+        for (int i = 0; i < properties.Length; i++)
+        {
+            PropertyInfo property = properties[i];
+            if (property.GetIndexParameters().Length == 0)
+            {
+                TryCollectUnitDataFromValue(SafeGetPropertyValue(property, source), result);
+            }
+        }
+
+        FieldInfo[] fields = sourceType.GetFields(instanceFlags);
+        for (int i = 0; i < fields.Length; i++)
+        {
+            TryCollectUnitDataFromValue(fields[i].GetValue(source), result);
+        }
+
+        MethodInfo[] methods = sourceType.GetMethods(instanceFlags);
+        for (int i = 0; i < methods.Length; i++)
+        {
+            MethodInfo method = methods[i];
+            if (method.IsSpecialName || method.GetParameters().Length != 0)
+            {
+                continue;
+            }
+
+            if (typeof(UnitLogicDataSO).IsAssignableFrom(method.ReturnType)
+                || typeof(System.Collections.IEnumerable).IsAssignableFrom(method.ReturnType))
+            {
+                TryCollectUnitDataFromValue(SafeInvokeMethod(method, source), result);
+            }
+        }
+    }
+
+    private void TryCollectUnitDataFromValue(object value, List<UnitLogicDataSO> result)
+    {
+        if (value == null)
+        {
+            return;
+        }
+
+        UnitLogicDataSO directData = value as UnitLogicDataSO;
+        if (directData != null)
+        {
+            AddUnitDataIfMissing(result, directData);
+            return;
+        }
+
+        System.Collections.IDictionary dictionary = value as System.Collections.IDictionary;
+        if (dictionary != null)
+        {
+            foreach (object item in dictionary.Values)
+            {
+                TryCollectUnitDataFromValue(item, result);
+            }
+
+            return;
+        }
+
+        string stringValue = value as string;
+        System.Collections.IEnumerable enumerable = value as System.Collections.IEnumerable;
+        if (enumerable == null || stringValue != null)
+        {
+            return;
+        }
+
+        foreach (object item in enumerable)
+        {
+            UnitLogicDataSO itemData = item as UnitLogicDataSO;
+            if (itemData != null)
+            {
+                AddUnitDataIfMissing(result, itemData);
+                continue;
+            }
+
+            object reflectedValue = ReadObjectValue(item, "Value", "value");
+            if (reflectedValue != null && reflectedValue != item)
+            {
+                TryCollectUnitDataFromValue(reflectedValue, result);
+            }
+        }
+    }
+
+    private void AddUnitDataIfMissing(List<UnitLogicDataSO> result, UnitLogicDataSO unitData)
+    {
+        if (unitData == null || result.Contains(unitData))
+        {
+            return;
+        }
+
+        result.Add(unitData);
+    }
+
+    private object SafeGetPropertyValue(PropertyInfo property, object source)
+    {
+        try
+        {
+            return property.GetValue(source, null);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private object SafeInvokeMethod(MethodInfo method, object source)
+    {
+        try
+        {
+            return method.Invoke(source, null);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private string ReadStringValue(object source, params string[] names)
+    {
+        object value = ReadObjectValue(source, names);
+        return value != null ? value.ToString() : string.Empty;
+    }
+
+    private int ReadIntValue(object source, int defaultValue, params string[] names)
+    {
+        object value = ReadObjectValue(source, names);
+        if (value == null)
+        {
+            return defaultValue;
+        }
+
+        try
+        {
+            return Convert.ToInt32(value);
+        }
+        catch
+        {
+            return defaultValue;
+        }
+    }
+
+    private object ReadObjectValue(object source, params string[] names)
+    {
+        if (source == null || names == null)
+        {
+            return null;
+        }
+
+        Type sourceType = source.GetType();
+        BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        for (int i = 0; i < names.Length; i++)
+        {
+            FieldInfo field = sourceType.GetField(names[i], flags);
+            if (field != null)
+            {
+                return field.GetValue(source);
+            }
+
+            PropertyInfo property = sourceType.GetProperty(names[i], flags);
+            if (property != null && property.GetIndexParameters().Length == 0)
+            {
+                return SafeGetPropertyValue(property, source);
+            }
+        }
+
+        return null;
+    }
+
     private void RefreshShopFree()
     {
         GenerateShopSlots();
@@ -504,39 +847,50 @@ public class ShopManager : MonoBehaviour
 
         for (int i = 0; i < ShopSlotCount; i++)
         {
-            shopSlots[i] = RollUnitPrefabForCurrentLevel();
+            string chessId = RollUnitChessIdForCurrentLevel();
+            shopSlotChessIds[i] = chessId;
+            shopSlots[i] = null;
             soldOutSlots[i] = false;
         }
 
         ShopRefreshed?.Invoke();
     }
 
-    private GameObject RollUnitPrefabForCurrentLevel()
+    private string RollUnitChessIdForCurrentLevel()
     {
-        ShopLevelWeight weight = levelWeights[Mathf.Clamp(level - 1, 0, MaxShopLevel - 1)];
-        int targetTier = RollTier(weight);
-        List<GameObject> candidates = GetCandidatesByTier(targetTier);
+        int targetTier = RollTier();
+        List<string> candidates = GetCandidatesByRare(targetTier);
 
         if (candidates.Count == 0)
         {
             Debug.LogWarning("<color=orange>[抽卡警告]</color> 卡池中没有 " + targetTier + " 阶卡，本货架将保持为空。");
-            return null;
+            return string.Empty;
         }
 
         int randomIndex = UnityEngine.Random.Range(0, candidates.Count);
         return candidates[randomIndex];
     }
 
-    private int RollTier(ShopLevelWeight weight)
+    private int RollTier()
     {
-        float tier1 = Mathf.Max(0f, weight.tier1Weight);
-        float tier2 = Mathf.Max(0f, weight.tier2Weight);
-        float tier3 = Mathf.Max(0f, weight.tier3Weight);
-        float total = tier1 + tier2 + tier3;
+        EnsureShopManagerDataLoaded();
+        ShopProbabilityConfig config = GetProbabilityConfigForCurrentLevel();
+        if (config == null)
+        {
+            Debug.LogWarning("<color=orange>[概率警告]</color> 找不到当前商店等级的 ShopProbability.csv 配置，默认抽 1 费卡。");
+            return 1;
+        }
+
+        float tier1 = Mathf.Max(0f, config.weightT1);
+        float tier2 = Mathf.Max(0f, config.weightT2);
+        float tier3 = Mathf.Max(0f, config.weightT3);
+        float tier4 = Mathf.Max(0f, config.weightT4);
+        float tier5 = Mathf.Max(0f, config.weightT5);
+        float total = tier1 + tier2 + tier3 + tier4 + tier5;
 
         if (total <= 0f)
         {
-            Debug.LogWarning("<color=orange>[概率警告]</color> 当前等级权重总和为 0，默认抽取 1 阶卡。");
+            Debug.LogWarning("<color=orange>[概率警告]</color> 当前等级权重总和为 0，默认抽取 1 费卡。");
             return 1;
         }
 
@@ -551,25 +905,67 @@ public class ShopManager : MonoBehaviour
             return 2;
         }
 
-        return 3;
+        if (roll < tier1 + tier2 + tier3)
+        {
+            return 3;
+        }
+
+        if (roll < tier1 + tier2 + tier3 + tier4)
+        {
+            return 4;
+        }
+
+        return 5;
     }
 
-    private List<GameObject> GetCandidatesByTier(int targetTier)
+    private ShopProbabilityConfig GetProbabilityConfigForCurrentLevel()
     {
-        List<GameObject> candidates = new List<GameObject>();
+        if (shopManagerData == null)
+        {
+            return null;
+        }
+
+        int currentShopLevel = Mathf.Clamp(level, 1, MaxShopLevel);
+        IReadOnlyList<ShopProbabilityConfig> probabilityConfigs = shopManagerData.ProbabilityConfigs;
+        for (int i = 0; i < probabilityConfigs.Count; i++)
+        {
+            ShopProbabilityConfig config = probabilityConfigs[i];
+            if (config != null && config.shopLevel == currentShopLevel)
+            {
+                return config;
+            }
+        }
+
+        return null;
+    }
+
+    private void EnsureShopManagerDataLoaded()
+    {
+        if (shopManagerData != null)
+        {
+            return;
+        }
+
+        shopManagerData = Resources.Load<ShopManagerDataSO>("Units/DataAssets/ShopManagerData");
+    }
+
+    private List<string> GetCandidatesByRare(int targetRare)
+    {
+        List<string> candidates = new List<string>();
         for (int i = 0; i < unitSupplyPool.Count; i++)
         {
-            GameObject prefab = unitSupplyPool[i];
-            if (prefab == null)
+            string chessId = unitSupplyPool[i];
+            UnitLogicDataSO unitData;
+            if (string.IsNullOrEmpty(chessId)
+                || !unitDataByChessId.TryGetValue(chessId, out unitData)
+                || unitData == null
+                || unitData.unitRare != targetRare
+                || GetRemainingCount(chessId) <= 0)
             {
                 continue;
             }
 
-            UnitLogic unit = prefab.GetComponent<UnitLogic>();
-            if (unit != null && unit.unitTier == targetTier)
-            {
-                candidates.Add(prefab);
-            }
+            candidates.Add(chessId);
         }
 
         return candidates;
@@ -593,6 +989,17 @@ public class ShopManager : MonoBehaviour
             && gridManager != null
             && gridManager.battlefieldContainer != null
             && unit.transform.parent == gridManager.battlefieldContainer;
+    }
+
+    private string GetPoolChessIdFromUnit(UnitLogic unit)
+    {
+        if (unit == null || unit.unitDataConfig == null || string.IsNullOrWhiteSpace(unit.unitDataConfig.chessId))
+        {
+            return string.Empty;
+        }
+
+        string chessId = unit.unitDataConfig.chessId.Trim();
+        return unitRemainingCounts.ContainsKey(chessId) ? chessId : string.Empty;
     }
 
     private int GetCurrentUpgradeExpRequirement()
@@ -673,7 +1080,6 @@ public class ShopManager : MonoBehaviour
     {
         EnsureUpgradeCosts();
         EnsureMaxCostLimits();
-        EnsureLevelWeights();
         EnsureRuntimeSlots();
     }
 
@@ -707,36 +1113,6 @@ public class ShopManager : MonoBehaviour
         }
     }
 
-    private void EnsureLevelWeights()
-    {
-        if (levelWeights == null || levelWeights.Length != MaxShopLevel)
-        {
-            ShopLevelWeight[] oldValues = levelWeights;
-            levelWeights = new ShopLevelWeight[MaxShopLevel];
-            if (oldValues != null)
-            {
-                int copyCount = Mathf.Min(oldValues.Length, levelWeights.Length);
-                for (int i = 0; i < copyCount; i++)
-                {
-                    levelWeights[i] = oldValues[i];
-                }
-            }
-        }
-
-        for (int i = 0; i < levelWeights.Length; i++)
-        {
-            if (levelWeights[i] == null)
-            {
-                levelWeights[i] = CreateDefaultWeight(i);
-            }
-
-            if (string.IsNullOrEmpty(levelWeights[i].levelName))
-            {
-                levelWeights[i].levelName = "Level " + (i + 1);
-            }
-        }
-    }
-
     private void EnsureRuntimeSlots()
     {
         if (shopSlots == null || shopSlots.Length != ShopSlotCount)
@@ -744,47 +1120,15 @@ public class ShopManager : MonoBehaviour
             shopSlots = new GameObject[ShopSlotCount];
         }
 
+        if (shopSlotChessIds == null || shopSlotChessIds.Length != ShopSlotCount)
+        {
+            shopSlotChessIds = new string[ShopSlotCount];
+        }
+
         if (soldOutSlots == null || soldOutSlots.Length != ShopSlotCount)
         {
             soldOutSlots = new bool[ShopSlotCount];
         }
-    }
-
-    private ShopLevelWeight CreateDefaultWeight(int index)
-    {
-        ShopLevelWeight weight = new ShopLevelWeight();
-        weight.levelName = "Level " + (index + 1);
-
-        switch (index)
-        {
-            case 0:
-                weight.tier1Weight = 100f;
-                weight.tier2Weight = 0f;
-                weight.tier3Weight = 0f;
-                break;
-            case 1:
-                weight.tier1Weight = 80f;
-                weight.tier2Weight = 20f;
-                weight.tier3Weight = 0f;
-                break;
-            case 2:
-                weight.tier1Weight = 60f;
-                weight.tier2Weight = 35f;
-                weight.tier3Weight = 5f;
-                break;
-            case 3:
-                weight.tier1Weight = 35f;
-                weight.tier2Weight = 50f;
-                weight.tier3Weight = 15f;
-                break;
-            default:
-                weight.tier1Weight = 20f;
-                weight.tier2Weight = 50f;
-                weight.tier3Weight = 30f;
-                break;
-        }
-
-        return weight;
     }
 
     private void CopyIntValues(int[] source, int[] target)

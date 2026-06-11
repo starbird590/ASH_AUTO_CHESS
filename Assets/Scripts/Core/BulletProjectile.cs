@@ -11,16 +11,14 @@ public class BulletProjectile : MonoBehaviour
 
     private UnitLogic attacker;
     private UnitLogic target;
-    private int damageValue;
     private float speed;
     private float lifeTimer;
     private bool launched;
 
-    public void Launch(UnitLogic attackerUnit, UnitLogic targetUnit, int rawDamage, float projectileSpeed)
+    public void Launch(UnitLogic attackerUnit, UnitLogic targetUnit, float projectileSpeed)
     {
         attacker = attackerUnit;
         target = targetUnit;
-        damageValue = Mathf.Max(0, rawDamage);
         speed = Mathf.Max(0.01f, projectileSpeed);
         lifeTimer = 0f;
         launched = true;
@@ -71,7 +69,7 @@ public class BulletProjectile : MonoBehaviour
 
         if (target != null && target.IsAlive && target.gameObject.activeInHierarchy)
         {
-            target.ReceiveDamage(damageValue, attacker);
+            target.ReceiveDamage(attacker, DamageType.Shooting);
         }
 
         Destroy(gameObject);
