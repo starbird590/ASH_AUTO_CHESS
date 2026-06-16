@@ -6,6 +6,7 @@ public class UnitLogicDataSO : ScriptableObject
     public string chessId;
     public string chessName;
     public GameObject unitPrefab;
+    public Sprite unitSprite;
     public string unionId;
     public int faction;
     public int playerDirective;

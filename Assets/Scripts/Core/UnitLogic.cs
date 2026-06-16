@@ -458,6 +458,20 @@ public sealed class UnitLogic : MonoBehaviour
             return;
         }
 
+        UnitLogic attackTarget = FindBestTargetInCurrentAttackRange();
+        if (attackTarget != null)
+        {
+            currentTarget = attackTarget;
+            TickAttack();
+            return;
+        }
+
+        if (faction == UnitFaction.Player && runtimePlayerDirective == PlayerDirective.CapturePoint)
+        {
+            TickCapturePointDirective();
+            return;
+        }
+
         targetSearchCooldown -= Time.deltaTime;
         if (targetSearchCooldown <= 0f || currentTarget == null || !currentTarget.IsAlive)
         {
@@ -471,23 +485,7 @@ public sealed class UnitLogic : MonoBehaviour
             return;
         }
 
-        float distance = Vector2.Distance(transform.position, currentTarget.transform.position);
-        float range = runtimeInBayonetMode ? bayonetRange : fireRange;
-        if (distance <= range)
-        {
-            TickAttack();
-        }
-        else
-        {
-            if (faction == UnitFaction.Player && runtimePlayerDirective == PlayerDirective.CapturePoint)
-            {
-                TickDirectiveMovement();
-            }
-            else
-            {
-                MoveToward(currentTarget.transform.position);
-            }
-        }
+        MoveToward(currentTarget.transform.position);
     }
 
     public void ApplyUnitDataConfig(UnitLogicDataSO nextConfig)
@@ -560,6 +558,7 @@ public sealed class UnitLogic : MonoBehaviour
         }
 
         SanitizeRuntimeValues();
+        ApplyConfiguredUnitSprite();
         runtimeValuesInitialized = true;
         ResetCombatRuntimeOnly();
     }
@@ -1082,7 +1081,7 @@ public sealed class UnitLogic : MonoBehaviour
             EnterBayonetMode();
         }
 
-        attackCooldown = GetAttackInterval(fireSpeed);
+        attackCooldown = GetAttackInterval(fireRate);
     }
 
     private void PerformFireAttack(UnitLogic target)
@@ -1114,21 +1113,25 @@ public sealed class UnitLogic : MonoBehaviour
 
         float outgoingDamage = RollCriticalDamage(bayonetDamage);
         target.ReceiveDamage(outgoingDamage, bayonetPenPct, bayonetPenFlat, AttackDamageTrack.Bayonet, this);
-        ApplyBayonetBacklash();
+        int backlashDamage = ApplyBayonetBacklash();
+        if (backlashDamage > 0)
+        {
+            Debug.LogWarning("[白刃战触发] " + GetDisplayName() + " 发动了白刃攻击！反噬真实伤害: " + backlashDamage);
+        }
     }
 
-    private void ApplyBayonetBacklash()
+    private int ApplyBayonetBacklash()
     {
         if (string.IsNullOrWhiteSpace(runtimeBayonetCost))
         {
-            return;
+            return 0;
         }
 
         string cleanedCost = runtimeBayonetCost.Trim().TrimStart('[').TrimEnd(']');
         string[] parts = cleanedCost.Split(',');
         if (parts.Length < 2)
         {
-            return;
+            return 0;
         }
 
         if (!float.TryParse(parts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out float flatDamage))
@@ -1144,21 +1147,24 @@ public sealed class UnitLogic : MonoBehaviour
         float finalBacklashDamage = flatDamage + runtimeMaxHp * percentDamage;
         if (finalBacklashDamage <= 0f)
         {
-            return;
+            return 0;
         }
 
-        runtimeCurrentHp -= Mathf.CeilToInt(finalBacklashDamage);
+        int roundedBacklashDamage = Mathf.CeilToInt(finalBacklashDamage);
+        runtimeCurrentHp -= roundedBacklashDamage;
         if (runtimeCurrentHp <= 0)
         {
             Die(null);
         }
+
+        return roundedBacklashDamage;
     }
 
     private bool SpawnProjectileVisual(UnitLogic target, float outgoingDamage, AttackDamageTrack damageTrack)
     {
         Vector3 spawnPosition = firePoint != null ? firePoint.position : transform.position;
         GameObject projectileObject = Instantiate(bulletPrefab, spawnPosition, Quaternion.identity);
-        ProjectileLaunchContext context = new ProjectileLaunchContext(this, target, outgoingDamage, fireRate, firePenPct, firePenFlat, damageTrack);
+        ProjectileLaunchContext context = new ProjectileLaunchContext(this, target, outgoingDamage, fireSpeed, firePenPct, firePenFlat, damageTrack);
         return TryInvokeProjectileMethod(projectileObject, "Initialize", context)
             || TryInvokeProjectileMethod(projectileObject, "Setup", context)
             || TryInvokeProjectileMethod(projectileObject, "Launch", context);
@@ -1341,6 +1347,16 @@ public sealed class UnitLogic : MonoBehaviour
 
     private UnitLogic FindBestTarget()
     {
+        return FindBestTarget(float.MaxValue);
+    }
+
+    private UnitLogic FindBestTargetInCurrentAttackRange()
+    {
+        return FindBestTarget(GetCurrentAttackRange());
+    }
+
+    private UnitLogic FindBestTarget(float maxDistance)
+    {
         UnitLogic bestTarget = null;
         float bestScore = float.MinValue;
         for (int i = 0; i < activeUnits.Count; i++)
@@ -1352,6 +1368,11 @@ public sealed class UnitLogic : MonoBehaviour
             }
 
             float distance = Vector2.Distance(transform.position, candidate.transform.position);
+            if (distance > maxDistance)
+            {
+                continue;
+            }
+
             float score = faction == UnitFaction.Player && runtimePlayerDirective == PlayerDirective.PushLine
                 ? -distance + UnityEngine.Random.Range(0f, 0.01f)
                 : candidate.threatValue * 1000f - distance + UnityEngine.Random.Range(0f, 0.01f);
@@ -1363,6 +1384,16 @@ public sealed class UnitLogic : MonoBehaviour
         }
 
         return bestTarget;
+    }
+
+    private float GetCurrentAttackRange()
+    {
+        return runtimeInBayonetMode ? bayonetRange : fireRange;
+    }
+
+    private float GetMovementAggroRange()
+    {
+        return Mathf.Max(fireRange, bayonetRange) + 1f;
     }
 
     private bool IsHostileTo(UnitLogic other)
@@ -1395,23 +1426,83 @@ public sealed class UnitLogic : MonoBehaviour
         return true;
     }
 
+    private void TickCapturePointDirective()
+    {
+        Vector2Int captureGridPosition;
+        Vector3 captureWorldPosition;
+        if (TryGetNearestNeutralCapturePoint(out captureGridPosition, out captureWorldPosition)
+            && Vector2.Distance(transform.position, captureWorldPosition) <= GridArrivalTolerance)
+        {
+            currentTarget = null;
+            transform.position = captureWorldPosition;
+            SetGridPosition(captureGridPosition);
+            TickCaptureProgress();
+            return;
+        }
+
+        UnitLogic movementTarget = currentTarget;
+        if (!IsValidMovementAggroTarget(movementTarget))
+        {
+            movementTarget = FindBestTarget(GetMovementAggroRange());
+            currentTarget = movementTarget;
+            targetSearchCooldown = TargetSearchInterval;
+        }
+
+        if (movementTarget != null)
+        {
+            MoveToward(movementTarget.transform.position);
+            return;
+        }
+
+        currentTarget = null;
+        if (TryGetNearestNeutralCapturePoint(out captureGridPosition, out captureWorldPosition))
+        {
+            MoveToward(captureWorldPosition);
+        }
+    }
+
+    private bool IsValidMovementAggroTarget(UnitLogic target)
+    {
+        if (target == null || !target.IsAlive || !IsHostileTo(target) || !CanTargetUnitType(target))
+        {
+            return false;
+        }
+
+        return Vector2.Distance(transform.position, target.transform.position) <= GetMovementAggroRange();
+    }
+
+    private bool TryGetNearestNeutralCapturePoint(out Vector2Int captureGridPosition, out Vector3 captureWorldPosition)
+    {
+        GridManager gridManager = GridManager.Instance;
+        if (gridManager != null && gridManager.TryGetNearestNeutralCapturePoint(transform.position, out captureGridPosition))
+        {
+            captureWorldPosition = gridManager.GetBattlefieldWorldPosition(captureGridPosition, transform.position.z);
+            return true;
+        }
+
+        captureGridPosition = new Vector2Int(GameFlowManager.BoardWidth / 2, GameFlowManager.StrategicLineY);
+        captureWorldPosition = new Vector3(captureGridPosition.x, captureGridPosition.y, transform.position.z);
+        return captureGridPosition.x >= 0
+            && captureGridPosition.x < GameFlowManager.BoardWidth
+            && captureGridPosition.y >= 0
+            && captureGridPosition.y < GameFlowManager.BoardHeight;
+    }
+
+    private void TickCaptureProgress()
+    {
+        if (GameFlowManager.Instance != null)
+        {
+            GameFlowManager.Instance.AddStrategicLineCapture(captureSpeed * Time.deltaTime);
+        }
+    }
+
     private void TickDirectiveMovement()
     {
         if (faction == UnitFaction.Player)
         {
             if (runtimePlayerDirective == PlayerDirective.CapturePoint)
             {
-                Vector3 targetPosition = new Vector3(transform.position.x, GameFlowManager.StrategicLineY, transform.position.z);
-                if (Vector2.Distance(transform.position, targetPosition) <= GridArrivalTolerance)
-                {
-                    if (GameFlowManager.Instance != null)
-                    {
-                        GameFlowManager.Instance.AddStrategicLineCapture(captureSpeed * Time.deltaTime);
-                    }
-                    return;
-                }
-
-                MoveToward(targetPosition);
+                TickCapturePointDirective();
                 return;
             }
 
@@ -1422,7 +1513,17 @@ public sealed class UnitLogic : MonoBehaviour
                 return;
             }
 
+            if (IsAtForwardBattlefieldEdge())
+            {
+                return;
+            }
+
             MoveToward(transform.position + new Vector3(0f, 1f, 0f));
+            return;
+        }
+
+        if (faction == UnitFaction.Enemy && IsAtForwardBattlefieldEdge())
+        {
             return;
         }
 
@@ -1460,6 +1561,57 @@ public sealed class UnitLogic : MonoBehaviour
         }
 
         transform.position = Vector3.MoveTowards(transform.position, targetPosition, moveSpeed * Time.deltaTime);
+        ClampPositionToBattlefieldBounds();
+    }
+
+    private bool IsAtForwardBattlefieldEdge()
+    {
+        GetBattlefieldWorldBounds(out _, out _, out float minY, out float maxY);
+
+        if (faction == UnitFaction.Player)
+        {
+            return transform.position.y >= maxY;
+        }
+
+        if (faction == UnitFaction.Enemy)
+        {
+            return transform.position.y <= minY;
+        }
+
+        return false;
+    }
+
+    private void ClampPositionToBattlefieldBounds()
+    {
+        GetBattlefieldWorldBounds(out float minX, out float maxX, out float minY, out float maxY);
+
+        Vector3 clampedPosition = transform.position;
+        clampedPosition.x = Mathf.Clamp(clampedPosition.x, minX, maxX);
+        clampedPosition.y = Mathf.Clamp(clampedPosition.y, minY, maxY);
+        transform.position = clampedPosition;
+    }
+
+    private void GetBattlefieldWorldBounds(out float minX, out float maxX, out float minY, out float maxY)
+    {
+        Vector3 minWorldPosition = new Vector3(0f, 0f, transform.position.z);
+        Vector3 maxWorldPosition = new Vector3(
+            GameFlowManager.BoardWidth - 1f,
+            GameFlowManager.BoardHeight - 1f,
+            transform.position.z);
+
+        GridManager gridManager = GridManager.Instance;
+        if (gridManager != null && gridManager.battlefieldContainer != null)
+        {
+            minWorldPosition = gridManager.GetBattlefieldWorldPosition(Vector2Int.zero, transform.position.z);
+            maxWorldPosition = gridManager.GetBattlefieldWorldPosition(
+                new Vector2Int(GameFlowManager.BoardWidth - 1, GameFlowManager.BoardHeight - 1),
+                transform.position.z);
+        }
+
+        minX = Mathf.Min(minWorldPosition.x, maxWorldPosition.x);
+        maxX = Mathf.Max(minWorldPosition.x, maxWorldPosition.x);
+        minY = Mathf.Min(minWorldPosition.y, maxWorldPosition.y);
+        maxY = Mathf.Max(minWorldPosition.y, maxWorldPosition.y);
     }
 
     private void EnterBayonetMode()
@@ -1467,6 +1619,20 @@ public sealed class UnitLogic : MonoBehaviour
         runtimeInBayonetMode = true;
         hasTriggeredBayonetContact = false;
         attackCooldown = 0f;
+    }
+
+    private void ApplyConfiguredUnitSprite()
+    {
+        if (unitDataConfig == null || unitDataConfig.unitSprite == null)
+        {
+            return;
+        }
+
+        SpriteRenderer unitModelSprite = GetComponentInChildren<SpriteRenderer>(true);
+        if (unitModelSprite != null)
+        {
+            unitModelSprite.sprite = unitDataConfig.unitSprite;
+        }
     }
 
     private void ResetCombatRuntimeOnly()

@@ -16,6 +16,12 @@ public class GridManager : MonoBehaviour
     public Transform battlefieldContainer;
     public Transform reserveContainer;
 
+    [Header("Neutral Capture Points")]
+    [SerializeField] private List<Vector2Int> neutralCapturePoints = new List<Vector2Int>
+    {
+        new Vector2Int(GameFlowManager.BoardWidth / 2, GameFlowManager.StrategicLineY)
+    };
+
     private readonly Dictionary<Vector2Int, UnitLogic> battlefieldOccupancy = new Dictionary<Vector2Int, UnitLogic>();
     private readonly Dictionary<Vector2Int, UnitLogic> reserveOccupancy = new Dictionary<Vector2Int, UnitLogic>();
 
@@ -222,6 +228,65 @@ public class GridManager : MonoBehaviour
         return reservePos.x >= 0
             && reservePos.x < MaxReserveSlots
             && reservePos.y == 0;
+    }
+
+    public bool TryGetNearestNeutralCapturePoint(Vector3 worldPosition, out Vector2Int capturePoint)
+    {
+        Vector3 battlefieldLocalPosition = WorldToBattlefieldLocalPosition(worldPosition);
+        Vector2 currentGridPosition = new Vector2(battlefieldLocalPosition.x, battlefieldLocalPosition.y);
+        bool foundPoint = false;
+        float nearestDistance = float.MaxValue;
+        capturePoint = default;
+
+        if (neutralCapturePoints != null)
+        {
+            for (int i = 0; i < neutralCapturePoints.Count; i++)
+            {
+                Vector2Int candidate = neutralCapturePoints[i];
+                if (!IsInsideBattlefield(candidate))
+                {
+                    continue;
+                }
+
+                float distance = Vector2.Distance(currentGridPosition, candidate);
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    capturePoint = candidate;
+                    foundPoint = true;
+                }
+            }
+        }
+
+        if (foundPoint)
+        {
+            return true;
+        }
+
+        capturePoint = GetDefaultNeutralCapturePoint();
+        return IsInsideBattlefield(capturePoint);
+    }
+
+    public Vector3 GetBattlefieldWorldPosition(Vector2Int gridPos, float worldZ)
+    {
+        Vector3 localPosition = new Vector3(gridPos.x, gridPos.y, 0f);
+        Vector3 worldPosition = battlefieldContainer != null
+            ? battlefieldContainer.TransformPoint(localPosition)
+            : localPosition;
+        worldPosition.z = worldZ;
+        return worldPosition;
+    }
+
+    private Vector3 WorldToBattlefieldLocalPosition(Vector3 worldPosition)
+    {
+        return battlefieldContainer != null
+            ? battlefieldContainer.InverseTransformPoint(worldPosition)
+            : worldPosition;
+    }
+
+    private Vector2Int GetDefaultNeutralCapturePoint()
+    {
+        return new Vector2Int(GameFlowManager.BoardWidth / 2, GameFlowManager.StrategicLineY);
     }
 
     private void NotifySynergyChanged()

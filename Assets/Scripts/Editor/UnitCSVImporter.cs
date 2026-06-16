@@ -16,6 +16,7 @@ public static class UnitCSVImporter
     {
         "chessId",
         "chessName",
+        "spriteName",
         "unionId",
         "faction",
         "playerDirective",
@@ -170,6 +171,7 @@ public static class UnitCSVImporter
 
             UnitLogicDataSO unitData = LoadOrCreateUnitData(chessId.Trim(), outputAssetFolder);
             FillUnitData(unitData, row, columnIndexByField);
+            AssignUnitSprite(unitData, row, columnIndexByField);
             EditorUtility.SetDirty(unitData);
             AutoWireMatchingPrefabs(unitData);
             importedCount++;
@@ -263,6 +265,35 @@ public static class UnitCSVImporter
         data.moveSpeed = GetFloat(row, columns, "moveSpeed");
         data.captureSpeed = GetFloat(row, columns, "captureSpeed");
         data.threatValue = GetInt(row, columns, "threatValue");
+    }
+
+    private static void AssignUnitSprite(UnitLogicDataSO data, List<string> row, Dictionary<string, int> columns)
+    {
+        if (data == null)
+        {
+            return;
+        }
+
+        string spriteName = GetString(row, columns, "spriteName");
+        if (string.IsNullOrWhiteSpace(spriteName))
+        {
+            spriteName = data.chessId;
+        }
+
+        if (string.IsNullOrWhiteSpace(spriteName))
+        {
+            data.unitSprite = null;
+            return;
+        }
+
+        string resourcePath = "Units/Icons/" + spriteName.Trim();
+        Sprite sprite = Resources.Load<Sprite>(resourcePath);
+        data.unitSprite = sprite;
+
+        if (sprite == null)
+        {
+            Debug.LogWarning("[UnitCSVImporter] 未找到单位贴图 Resources/" + resourcePath + "，ChessId=" + data.chessId);
+        }
     }
 
     private static UnitLogicDataSO LoadOrCreateUnitData(string chessId, string outputAssetFolder)

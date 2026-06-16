@@ -101,43 +101,52 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c00835bcb2dfd02409059e80dcc9ab4e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  faction: 1
-  playerDirective: 1
-  synergyIdentityOverride: 
-  baseTraits: []
-  unitPrice: 10
-  unitCost: 1
-  unitTier: 1
-  maxHp: 100
-  currentHp: 100
-  armor: 0
-  isAirUnit: 0
-  hasSolidBodyShell: 1
-  damage: 3
-  attackSpeed: 1
-  attackRange: 1
-  isAoE: 0
-  bayonetDamage: 1
-  bayonetAttackSpeed: 0.5
+  unitDataConfig: {fileID: 11400000, guid: 4664ef7c783bd094b90c958deb48819f, type: 2}
   bulletPrefab: {fileID: 5052129100641712147, guid: 03219999414fcbf4c8c37a1cbcfae454, type: 3}
-  bulletSpeed: 10
   firePoint: {fileID: 0}
-  canTargetAir: 1
-  canTargetGround: 1
-  moveSpeed: 0.5
-  captureSpeed: 10
-  threatValue: 5
-  ammoSpeed: 1
-  maxAmmo: 1
-  currentAmmo: 1
-  isInBayonetMode: 0
-  bayonetSelfDamage: 2
-  bayonetSelfDamagePercent: 0
-  gridPosition: {x: 0, y: 0}
-  hasGridPosition: 0
-  veteran: 0
+  modelContainer: {fileID: 0}
+  baseTraits: []
+  synergyIdentityOverride: 
+  runtimeFaction: 1
+  runtimePlayerDirective: 1
+  runtimeUnitCost: 1
+  runtimeUnitPrice: 10
+  runtimeUnitRare: 1
+  runtimeUnitTier: 1
+  runtimeUnitType: 0
+  runtimeAttackType: 0
+  runtimeMaxHp: 100
+  runtimeCurrentHp: 100
+  runtimeArmor: 0
+  runtimeBayonetArmor: 0
+  runtimeCritRate: 0
+  runtimeCritDamage: 1.5
+  runtimeFireDamage: 3
+  runtimeFireRate: 8
+  runtimeFireSpeed: 1
+  runtimeFireRange: 1
+  runtimeMaxAmmo: 1
+  runtimeCurrentAmmo: 1
+  runtimeAmmoSpeed: 1
+  runtimeFirePenPct: 0
+  runtimeFirePenFlat: 0
+  runtimeDamageAoe: 0
+  runtimeBayonetId: 
+  runtimeBayonetDamage: 1
+  runtimeBayonetCost: 
+  runtimeBayonetSpeed: 1
+  runtimeBayonetRange: 1
+  runtimeBayonetPenPct: 0
+  runtimeBayonetPenFlat: 0
+  runtimeMoveSpeed: 0.5
+  runtimeCaptureSpeed: 10
+  runtimeThreatValue: 5
+  runtimeIsVeteran: 0
   isPositionLocked: 0
   isCombatEnabled: 0
+  hasGridPosition: 0
+  gridPosition: {x: 0, y: 0}
+  runtimeInBayonetMode: 0
 --- !u!114 &186122334077149941
 MonoBehaviour:
   m_ObjectHideFlags: 0

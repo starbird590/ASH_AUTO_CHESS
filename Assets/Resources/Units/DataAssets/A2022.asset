@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   chessId: A2022
   chessName: "\u706B\u529B\u8F93\u51FA-\u7279\u6548-\u68CB\u5B50A\u2605\u2605"
+  unitPrefab: {fileID: 0}
+  unitSprite: {fileID: 21300000, guid: 665fc766d34c2864c806023a1b0a7124, type: 3}
   unionId: 
   faction: 0
   playerDirective: 0
@@ -26,8 +28,8 @@ MonoBehaviour:
   baseHp: 183
   baseArmor: 4
   bayonetArmor: 0
-  critRate: 0.05
-  critDamage: 1.5
+  critRate: 1.5
+  critDamage: 20
   fireDamage: 20
   fireRate: 0.8
   fireSpeed: 7.4

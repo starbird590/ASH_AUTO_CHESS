@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   chessId: A5091
   chessName: "DEBUFF-\u68CB\u5B50A\u2605"
+  unitPrefab: {fileID: 0}
+  unitSprite: {fileID: 21300000, guid: db828774519913847bef12c8839d5730, type: 3}
   unionId: 
   faction: 0
   playerDirective: 0
@@ -26,8 +28,8 @@ MonoBehaviour:
   baseHp: 230
   baseArmor: 5
   bayonetArmor: 3
-  critRate: 0.05
-  critDamage: 1.5
+  critRate: 1.5
+  critDamage: 18
   fireDamage: 18
   fireRate: 0.8
   fireSpeed: 7
