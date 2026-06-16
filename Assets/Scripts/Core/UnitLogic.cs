@@ -1032,6 +1032,33 @@ public sealed class UnitLogic : MonoBehaviour
         float denominator = Mathf.Max(1f, ArmorFormulaBase + effectiveArmor);
         float armorAdjustedDamage = baseDamage * ArmorFormulaBase / denominator;
         float finalDamage = armorAdjustedDamage * ampProduct * reductionProduct - flatReduction;
+        float armorResistanceRatio = ArmorFormulaBase / denominator;
+        int roundedFinalDamage = Mathf.Max(1, Mathf.CeilToInt(finalDamage));
+        bool triggeredMinimumDamage = roundedFinalDamage == 1 && finalDamage < 1.0f;
+        string highlightColor = triggeredMinimumDamage ? "#FF9900" : "#00FFCC";
+
+        Debug.Log(
+            $"<color={highlightColor}><b>[Damage Debug] {(triggeredMinimumDamage ? "Minimum Damage Floor Triggered" : "Normal Damage")}</b></color>\n" +
+            $"<b>Input</b>\n" +
+            $"  incomingDamage: {incomingDamage:F2}\n" +
+            $"<b>Armor / Penetration</b>\n" +
+            $"  targetArmor: {targetArmor}\n" +
+            $"  penetrationPct: {penetrationPct:F2}\n" +
+            $"  penetrationFlat: {penetrationFlat:F2}\n" +
+            $"<b>Step 1 - Armor Reduction</b>\n" +
+            $"  effectiveArmor: {effectiveArmor:F2}\n" +
+            $"  100 / (100 + effectiveArmor): {armorResistanceRatio:F4}\n" +
+            $"  armorAdjustedDamage: {armorAdjustedDamage:F2}\n" +
+            $"<b>Step 2 - Multiplicative Modifiers</b>\n" +
+            $"  ampProduct: {ampProduct:F2}\n" +
+            $"  reductionProduct: {reductionProduct:F2}\n" +
+            $"<b>Step 3 - Subtractive Modifiers</b>\n" +
+            $"  flatReduction: {flatReduction:F2}\n" +
+            $"<b>Core Formula Output</b>\n" +
+            $"  finalDamage: {finalDamage:F4}\n" +
+            $"<color={highlightColor}><b>Final Output</b>\n" +
+            $"  Mathf.Max(1, Mathf.CeilToInt(finalDamage)): {roundedFinalDamage}</color>");
+
         return Mathf.Max(1, Mathf.CeilToInt(finalDamage));
     }
 
@@ -1296,6 +1323,11 @@ public sealed class UnitLogic : MonoBehaviour
 
     private float GetProjectileNumericArgument(string parameterName, int numericIndex, ProjectileLaunchContext context)
     {
+        if (parameterName.Contains("damage") || parameterName.Contains("dmg"))
+        {
+            return context.damage;
+        }
+
         if (parameterName.Contains("speed") || parameterName.Contains("rate"))
         {
             return context.projectileSpeed;

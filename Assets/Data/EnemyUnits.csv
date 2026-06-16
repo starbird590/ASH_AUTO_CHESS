@@ -1,5 +1,5 @@
 棋子ID,名称,羁绊ID,敌人\玩家,推进\占领,人口消耗,价格,稀有度,星级,单位类型,攻击类型,生命值,护甲,白刃防护,暴击率,暴击伤害,火力,弹道速度,火力射速,火力射程,弹药量,弹药消耗速率,火力百分比穿透,火力固定值穿透,AOE,白刃ID,白刃伤害,白刃损耗,白刃攻速,白刃范围,白刃百分比穿透,白刃固定值穿透,移动速度,占领速度,嘲讽值,角色图
-ChessId,ChessName,UnionId,Faction,PlayerDirective,UnitCost,UnitPrice,UnitRare,UnitTier,UnitType,AttackType,BaseHp,BaseArmor,BayonetArmor,CritRate?,CritDamage?,FireDamage,FireRate,FireSpeed,FireRange,Ammo,AmmoSpeed,FirePenPct,FirePenFlat,DamageAoe,BayonetId,BayonetDamage,BayonetCost,BayonetSpeed,BayonetRange,BayonetPenPct,BayonetPenFlat,MoveSpeed,CaptureSpeed,ThreatValue,SpriteName
+ChessId,ChessName,UnionId,Faction,PlayerDirective,UnitCost,UnitPrice,UnitRare,UnitTier,UnitType,AttackType,BaseHp,BaseArmor,BayonetArmor,CritRate,CritDamage,FireDamage,FireRate,FireSpeed,FireRange,Ammo,AmmoSpeed,FirePenPct,FirePenFlat,DamageAoe,BayonetId,BayonetDamage,BayonetCost,BayonetSpeed,BayonetRange,BayonetPenPct,BayonetPenFlat,MoveSpeed,CaptureSpeed,ThreatValue,SpriteName
 ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 E1011,火力输出-远程子弹-小兵,,1,0,0,0,1,1,0,1,41,2,0,0.05,1.5,5,1,9,3,27,1,0,0,,,2,"[5,0.01]",1.2,1,0,0,1.1,0.3,6,
 E1012,火力输出-远程子弹-精英,,1,0,0,0,1,2,0,1,75,2,0,0.05,1.5,8,1,9.5,3,31,1,0,0,,,3,"[5,0.01]",1.2,1,0,0,1.1,0.3,13,

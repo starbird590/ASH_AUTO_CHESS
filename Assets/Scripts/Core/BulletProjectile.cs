@@ -11,15 +11,28 @@ public class BulletProjectile : MonoBehaviour
 
     private UnitLogic attacker;
     private UnitLogic target;
+    private float damage;
+    private float penetrationPct;
+    private float penetrationFlat;
+    private AttackDamageTrack damageTrack;
     private float speed;
     private float lifeTimer;
     private bool launched;
 
-    public void Launch(UnitLogic attackerUnit, UnitLogic targetUnit, float projectileSpeed)
+    public void Launch(UnitLogic.ProjectileLaunchContext context)
     {
-        attacker = attackerUnit;
-        target = targetUnit;
-        speed = Mathf.Max(0.01f, projectileSpeed);
+        if (context == null)
+        {
+            return;
+        }
+
+        attacker = context.attacker;
+        target = context.target;
+        this.damage = context.damage;
+        penetrationPct = context.penetrationPct;
+        penetrationFlat = context.penetrationFlat;
+        damageTrack = context.damageTrack;
+        speed = Mathf.Max(0.01f, context.projectileSpeed);
         lifeTimer = 0f;
         launched = true;
     }
@@ -69,7 +82,7 @@ public class BulletProjectile : MonoBehaviour
 
         if (target != null && target.IsAlive && target.gameObject.activeInHierarchy)
         {
-            target.ReceiveDamage(attacker, DamageType.Shooting);
+            target.ReceiveDamage(damage, penetrationPct, penetrationFlat, damageTrack, attacker);
         }
 
         Destroy(gameObject);

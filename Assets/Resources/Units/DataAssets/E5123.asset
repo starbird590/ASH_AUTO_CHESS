@@ -28,8 +28,8 @@ MonoBehaviour:
   baseHp: 501
   baseArmor: 5
   bayonetArmor: 0
-  critRate: 1.5
-  critDamage: 40
+  critRate: 0.05
+  critDamage: 1.5
   fireDamage: 40
   fireRate: 0.9
   fireSpeed: 11
