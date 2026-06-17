@@ -10,21 +10,31 @@ public class MapNodeButtonUI : MonoBehaviour, IPointerClickHandler
 
     [Header("Node Binding")]
     [SerializeField] private MapNodeSO node;
+    [SerializeField] private string runtimeNodeId;
 
     [Header("UI References")]
     [SerializeField] private Button button;
     [SerializeField] private Image iconImage;
+    [SerializeField] private Text labelText;
 
     [Header("Visual State")]
     [SerializeField] private Color selectableColor = Color.white;
     [SerializeField] private Color lockedColor = new Color(0.35f, 0.35f, 0.35f, 0.45f);
 
+    private MapNodeData runtimeNode;
+
     public MapNodeSO Node => node;
+    public string RuntimeNodeId => !string.IsNullOrWhiteSpace(runtimeNodeId)
+        ? runtimeNodeId
+        : runtimeNode != null
+            ? runtimeNode.NodeId
+            : string.Empty;
 
     private void Reset()
     {
         button = GetComponent<Button>();
         iconImage = GetComponent<Image>();
+        labelText = GetComponentInChildren<Text>(true);
     }
 
     private void Awake()
@@ -37,6 +47,11 @@ public class MapNodeButtonUI : MonoBehaviour, IPointerClickHandler
         if (iconImage == null)
         {
             iconImage = GetComponent<Image>();
+        }
+
+        if (labelText == null)
+        {
+            labelText = GetComponentInChildren<Text>(true);
         }
     }
 
@@ -73,6 +88,24 @@ public class MapNodeButtonUI : MonoBehaviour, IPointerClickHandler
         RefreshVisualState();
     }
 
+    public void BindNode(MapNodeSO nextNode)
+    {
+        node = nextNode;
+        runtimeNode = null;
+        runtimeNodeId = string.Empty;
+        UpdateLabel();
+        RefreshVisualState();
+    }
+
+    public void BindRuntimeNode(MapNodeData nextNode)
+    {
+        runtimeNode = nextNode;
+        runtimeNodeId = nextNode != null ? nextNode.NodeId : string.Empty;
+        node = null;
+        UpdateLabel();
+        RefreshVisualState();
+    }
+
     private void HandleMapStateChanged()
     {
         RefreshVisualState();
@@ -86,7 +119,7 @@ public class MapNodeButtonUI : MonoBehaviour, IPointerClickHandler
     public void RefreshVisualState()
     {
         StageMapManager mapManager = StageMapManager.Instance;
-        bool selectable = mapManager != null && mapManager.IsNodeSelectable(node);
+        bool selectable = mapManager != null && IsSelectable(mapManager);
 
         if (button != null)
         {
@@ -102,7 +135,21 @@ public class MapNodeButtonUI : MonoBehaviour, IPointerClickHandler
     public bool TrySelectNode()
     {
         StageMapManager mapManager = StageMapManager.EnsureInstance();
-        if (!mapManager.SelectNode(node))
+        bool selected = false;
+        if (runtimeNode != null)
+        {
+            selected = mapManager.SelectNode(runtimeNode);
+        }
+        else if (!string.IsNullOrWhiteSpace(runtimeNodeId))
+        {
+            selected = mapManager.SelectNode(runtimeNodeId);
+        }
+        else
+        {
+            selected = mapManager.SelectNode(node);
+        }
+
+        if (!selected)
         {
             RefreshVisualState();
             return false;
@@ -125,5 +172,42 @@ public class MapNodeButtonUI : MonoBehaviour, IPointerClickHandler
 
             buttonUI.RefreshVisualState();
         }
+    }
+
+    private bool IsSelectable(StageMapManager mapManager)
+    {
+        if (runtimeNode != null)
+        {
+            return mapManager.IsNodeSelectable(runtimeNode);
+        }
+
+        if (!string.IsNullOrWhiteSpace(runtimeNodeId))
+        {
+            return mapManager.IsNodeSelectable(runtimeNodeId);
+        }
+
+        return mapManager.IsNodeSelectable(node);
+    }
+
+    private void UpdateLabel()
+    {
+        if (labelText == null)
+        {
+            return;
+        }
+
+        if (runtimeNode != null)
+        {
+            labelText.text = runtimeNode.NodeId;
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(runtimeNodeId))
+        {
+            labelText.text = runtimeNodeId;
+            return;
+        }
+
+        labelText.text = node != null ? node.NodeId : string.Empty;
     }
 }

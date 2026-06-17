@@ -286,14 +286,55 @@ public static class UnitCSVImporter
             return;
         }
 
-        string resourcePath = "Units/Icons/" + spriteName.Trim();
-        Sprite sprite = Resources.Load<Sprite>(resourcePath);
+        string trimmedSpriteName = spriteName.Trim();
+        string resourcePath = "Units/Icons/" + trimmedSpriteName;
+        Sprite sprite = LoadUnitSprite(trimmedSpriteName, resourcePath);
         data.unitSprite = sprite;
 
         if (sprite == null)
         {
             Debug.LogWarning("[UnitCSVImporter] 未找到单位贴图 Resources/" + resourcePath + "，ChessId=" + data.chessId);
         }
+    }
+
+    private static Sprite LoadUnitSprite(string spriteName, string resourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(spriteName))
+        {
+            return null;
+        }
+
+        string assetPath = "Assets/Resources/Units/Icons/" + spriteName.Trim() + ".png";
+        Sprite editorSprite = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+        if (editorSprite != null)
+        {
+            return editorSprite;
+        }
+
+        UnityEngine.Object[] assetsAtPath = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+        for (int i = 0; i < assetsAtPath.Length; i++)
+        {
+            if (assetsAtPath[i] is Sprite sprite)
+            {
+                return sprite;
+            }
+        }
+
+        TextureImporter textureImporter = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+        if (textureImporter != null && textureImporter.textureType != TextureImporterType.Sprite)
+        {
+            textureImporter.textureType = TextureImporterType.Sprite;
+            textureImporter.spriteImportMode = SpriteImportMode.Single;
+            textureImporter.SaveAndReimport();
+
+            editorSprite = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+            if (editorSprite != null)
+            {
+                return editorSprite;
+            }
+        }
+
+        return Resources.Load<Sprite>(resourcePath);
     }
 
     private static UnitLogicDataSO LoadOrCreateUnitData(string chessId, string outputAssetFolder)

@@ -9,7 +9,7 @@ public class MapNodeSO : ScriptableObject
     [SerializeField] private int layerIndex;
 
     [Header("Battle Wave Candidates")]
-    [SerializeField] private List<int> battleWaveIds = new List<int>();
+    [SerializeField] private List<string> battleWaveIds = new List<string>();
 
     [Header("Topology")]
     [SerializeField] private List<MapNodeSO> nextNodes = new List<MapNodeSO>();
@@ -24,14 +24,14 @@ public class MapNodeSO : ScriptableObject
     public int BaseReward => baseReward;
     public int VictoryBonus => victoryBonus;
     public int DefeatBonus => defeatBonus;
-    public IReadOnlyList<int> BattleWaveIds => battleWaveIds;
+    public IReadOnlyList<string> BattleWaveIds => battleWaveIds;
     public IReadOnlyList<MapNodeSO> NextNodes => nextNodes;
 
     private void OnValidate()
     {
         if (battleWaveIds == null)
         {
-            battleWaveIds = new List<int>();
+            battleWaveIds = new List<string>();
         }
 
         if (nextNodes == null)
@@ -49,6 +49,17 @@ public class MapNodeSO : ScriptableObject
         victoryBonus = Mathf.Max(0, victoryBonus);
         defeatBonus = Mathf.Max(0, defeatBonus);
 
+        for (int i = battleWaveIds.Count - 1; i >= 0; i--)
+        {
+            if (string.IsNullOrWhiteSpace(battleWaveIds[i]))
+            {
+                battleWaveIds.RemoveAt(i);
+                continue;
+            }
+
+            battleWaveIds[i] = battleWaveIds[i].Trim();
+        }
+
         for (int i = nextNodes.Count - 1; i >= 0; i--)
         {
             if (nextNodes[i] == null || nextNodes[i] == this)
@@ -58,12 +69,12 @@ public class MapNodeSO : ScriptableObject
         }
     }
 
-    public int GetRandomBattleWaveId()
+    public string GetRandomBattleWaveId()
     {
         if (battleWaveIds == null || battleWaveIds.Count == 0)
         {
-            Debug.LogWarning("[MapNodeSO] Node " + name + " has no battle wave candidates. Returning -1.");
-            return -1;
+            Debug.LogWarning("[MapNodeSO] Node " + name + " has no battle wave candidates. Returning empty wave id.");
+            return string.Empty;
         }
 
         int randomIndex = Random.Range(0, battleWaveIds.Count);

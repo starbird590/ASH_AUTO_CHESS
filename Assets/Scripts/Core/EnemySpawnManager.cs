@@ -22,8 +22,8 @@ public class InitialEnemyConfig
 [Serializable]
 public class EnemyWaveConfig
 {
-    [Tooltip("Battle wave ID rolled by MapNodeSO.")]
-    public int waveId;
+    [Tooltip("Battle wave ID rolled by MapNodeSO or MapNode.csv.")]
+    public string waveId;
 
     [Tooltip("Initial enemies for this wave. Deployment shows warnings, Battle spawns real enemies.")]
     public List<InitialEnemyConfig> initialEnemyConfigs = new List<InitialEnemyConfig>();
@@ -73,8 +73,8 @@ public class EnemySpawnManager : MonoBehaviour
     [Tooltip("Fallback initial enemy configs used when no map wave is selected or matched.")]
     [SerializeField] private List<InitialEnemyConfig> initialEnemyConfigs = new List<InitialEnemyConfig>();
 
-    [Header("Map Wave Configs")]
-    [Tooltip("Wave configs keyed by MapNodeSO battle wave ID.")]
+    [Header("Fallback Inspector Wave Configs")]
+    [Tooltip("Fallback wave configs keyed by MapNodeSO or MapNode.csv battle wave ID.")]
     [SerializeField] private List<EnemyWaveConfig> enemyWaveConfigs = new List<EnemyWaveConfig>();
 
     private readonly List<GameObject> warningObjects = new List<GameObject>();
@@ -85,6 +85,7 @@ public class EnemySpawnManager : MonoBehaviour
     private bool boundToFlowManager;
     private bool warnedEmptyHivePool;
     private bool warnedMissingWaveConfig;
+    private bool warnedMissingUnitDataManager;
     private float spawnCountdown;
     private int lastSpawnX = -1;
 
@@ -122,6 +123,11 @@ public class EnemySpawnManager : MonoBehaviour
             if (waveConfig == null)
             {
                 continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(waveConfig.waveId))
+            {
+                waveConfig.waveId = waveConfig.waveId.Trim();
             }
 
             waveConfig.hiveMaxHp = Mathf.Max(1, waveConfig.hiveMaxHp);
@@ -170,22 +176,30 @@ public class EnemySpawnManager : MonoBehaviour
             return;
         }
 
-        EnemyWaveConfig currentWaveConfig = GetCurrentWaveConfig();
-        if (currentWaveConfig == null)
-        {
-            return;
-        }
-
         if (hiveBoss == null || !hiveBoss.IsAlive)
         {
             return;
         }
 
         spawnCountdown -= Time.deltaTime;
-        if (spawnCountdown <= 0f)
+        if (spawnCountdown > 0f)
         {
-            SpawnHiveEnemy(currentWaveConfig);
-            spawnCountdown = GetCurrentSpawnInterval(currentWaveConfig);
+            return;
+        }
+
+        WaveNodeData tableWave = GetCurrentTableWaveData();
+        if (tableWave != null)
+        {
+            SpawnHiveEnemy(tableWave);
+            spawnCountdown = GetCurrentSpawnInterval(tableWave);
+            return;
+        }
+
+        EnemyWaveConfig fallbackWave = GetCurrentFallbackWaveConfig();
+        if (fallbackWave != null)
+        {
+            SpawnHiveEnemy(fallbackWave);
+            spawnCountdown = GetCurrentSpawnInterval(fallbackWave);
         }
     }
 
@@ -263,6 +277,7 @@ public class EnemySpawnManager : MonoBehaviour
         spawningActive = false;
         warnedEmptyHivePool = false;
         warnedMissingWaveConfig = false;
+        warnedMissingUnitDataManager = false;
         ClearWarnings();
         ClearSpawnedEnemies();
         CreateWarningProjections();
@@ -272,6 +287,7 @@ public class EnemySpawnManager : MonoBehaviour
     {
         warnedEmptyHivePool = false;
         warnedMissingWaveConfig = false;
+        warnedMissingUnitDataManager = false;
         ClearWarnings();
         ClearSpawnedEnemies();
         SpawnInitialEnemies();
@@ -296,23 +312,57 @@ public class EnemySpawnManager : MonoBehaviour
             return;
         }
 
+        WaveNodeData tableWave = GetCurrentTableWaveData();
+        if (tableWave != null)
+        {
+            for (int i = 0; i < tableWave.InitialEnemyConfigs.Count; i++)
+            {
+                CreateWarningAt(gridManager, tableWave.InitialEnemyConfigs[i].GridPosition);
+            }
+
+            return;
+        }
+
         List<InitialEnemyConfig> configs = GetCurrentInitialEnemyConfigs();
         for (int i = 0; i < configs.Count; i++)
         {
             InitialEnemyConfig config = configs[i];
-            if (config == null || !gridManager.IsInsideBattlefield(config.gridPosition))
+            if (config != null)
             {
-                continue;
+                CreateWarningAt(gridManager, config.gridPosition);
             }
-
-            GameObject warning = Instantiate(warningProjectionPrefab, gridManager.battlefieldContainer);
-            warning.transform.localPosition = new Vector3(config.gridPosition.x, config.gridPosition.y, 0f);
-            warningObjects.Add(warning);
         }
+    }
+
+    private void CreateWarningAt(GridManager gridManager, Vector2Int gridPosition)
+    {
+        if (gridManager == null || !gridManager.IsInsideBattlefield(gridPosition))
+        {
+            return;
+        }
+
+        GameObject warning = Instantiate(warningProjectionPrefab, gridManager.battlefieldContainer);
+        warning.transform.localPosition = new Vector3(gridPosition.x, gridPosition.y, 0f);
+        warningObjects.Add(warning);
     }
 
     private void SpawnInitialEnemies()
     {
+        WaveNodeData tableWave = GetCurrentTableWaveData();
+        if (tableWave != null)
+        {
+            for (int i = 0; i < tableWave.InitialEnemyConfigs.Count; i++)
+            {
+                WaveEnemyConfigData config = tableWave.InitialEnemyConfigs[i];
+                if (config != null)
+                {
+                    SpawnEnemyAtChessId(config.ChessId, config.GridPosition, false);
+                }
+            }
+
+            return;
+        }
+
         List<InitialEnemyConfig> configs = GetCurrentInitialEnemyConfigs();
         for (int i = 0; i < configs.Count; i++)
         {
@@ -323,13 +373,13 @@ public class EnemySpawnManager : MonoBehaviour
                 continue;
             }
 
-            SpawnEnemyAt(config.enemyPrefab, config.gridPosition, false);
+            SpawnEnemyAtPrefab(config.enemyPrefab, config.gridPosition, false);
         }
     }
 
     private List<InitialEnemyConfig> GetCurrentInitialEnemyConfigs()
     {
-        EnemyWaveConfig waveConfig = GetCurrentWaveConfig();
+        EnemyWaveConfig waveConfig = GetCurrentFallbackWaveConfig();
         if (waveConfig != null && waveConfig.initialEnemyConfigs != null && waveConfig.initialEnemyConfigs.Count > 0)
         {
             return waveConfig.initialEnemyConfigs;
@@ -338,10 +388,20 @@ public class EnemySpawnManager : MonoBehaviour
         return initialEnemyConfigs;
     }
 
-    private EnemyWaveConfig GetCurrentWaveConfig()
+    private WaveNodeData GetCurrentTableWaveData()
     {
-        int currentWaveId = StageMapManager.Instance != null ? StageMapManager.Instance.CurrentBattleWaveId : -1;
-        if (currentWaveId < 0 || enemyWaveConfigs == null)
+        if (StageMapManager.Instance == null)
+        {
+            return null;
+        }
+
+        return StageMapManager.Instance.TryGetCurrentWaveNode(out WaveNodeData waveData) ? waveData : null;
+    }
+
+    private EnemyWaveConfig GetCurrentFallbackWaveConfig()
+    {
+        string currentWaveId = StageMapManager.Instance != null ? StageMapManager.Instance.CurrentBattleWaveId : string.Empty;
+        if (string.IsNullOrWhiteSpace(currentWaveId) || enemyWaveConfigs == null)
         {
             return null;
         }
@@ -349,7 +409,7 @@ public class EnemySpawnManager : MonoBehaviour
         for (int i = 0; i < enemyWaveConfigs.Count; i++)
         {
             EnemyWaveConfig waveConfig = enemyWaveConfigs[i];
-            if (waveConfig != null && waveConfig.waveId == currentWaveId)
+            if (waveConfig != null && string.Equals(waveConfig.waveId, currentWaveId, StringComparison.OrdinalIgnoreCase))
             {
                 return waveConfig;
             }
@@ -358,7 +418,7 @@ public class EnemySpawnManager : MonoBehaviour
         if (!warnedMissingWaveConfig)
         {
             warnedMissingWaveConfig = true;
-            Debug.LogWarning("<color=orange>[Map Wave]</color> Cannot find enemy wave config for waveId=" + currentWaveId + ". Fallback initialEnemyConfigs will be used where possible.");
+            Debug.LogWarning("<color=orange>[Map Wave]</color> Cannot find fallback enemy wave config for waveId=" + currentWaveId + ". Fallback initialEnemyConfigs will be used where possible.");
         }
 
         return null;
@@ -367,13 +427,21 @@ public class EnemySpawnManager : MonoBehaviour
     private void SpawnHiveBoss()
     {
         hiveBoss = null;
-        EnemyWaveConfig waveConfig = GetCurrentWaveConfig();
+
+        WaveNodeData tableWave = GetCurrentTableWaveData();
+        if (tableWave != null)
+        {
+            SpawnTableHiveBoss(tableWave);
+            return;
+        }
+
+        EnemyWaveConfig waveConfig = GetCurrentFallbackWaveConfig();
         if (waveConfig == null || waveConfig.hiveBossPrefab == null)
         {
             return;
         }
 
-        hiveBoss = SpawnEnemyAt(waveConfig.hiveBossPrefab, waveConfig.hiveGridPosition, true);
+        hiveBoss = SpawnEnemyAtPrefab(waveConfig.hiveBossPrefab, waveConfig.hiveGridPosition, true);
         if (hiveBoss == null)
         {
             return;
@@ -386,6 +454,39 @@ public class EnemySpawnManager : MonoBehaviour
         hiveBoss.threatValue = Mathf.Max(0, waveConfig.hiveThreatValue);
     }
 
+    private void SpawnTableHiveBoss(WaveNodeData tableWave)
+    {
+        if (tableWave == null || !tableWave.HasBoss || tableWave.BossInfo == null || !tableWave.BossInfo.HasBossChessId)
+        {
+            return;
+        }
+
+        hiveBoss = SpawnEnemyAtChessId(tableWave.BossInfo.BossChessId, tableWave.BossInfo.GridPosition, true);
+        if (hiveBoss != null)
+        {
+            // 母巢本身是据点，不参与普通前进。
+            hiveBoss.moveSpeed = 0f;
+        }
+    }
+
+    private void SpawnHiveEnemy(WaveNodeData tableWave)
+    {
+        if (tableWave == null || tableWave.BossInfo == null || tableWave.BossInfo.SpawnPoolChessIds == null || tableWave.BossInfo.SpawnPoolChessIds.Count == 0)
+        {
+            WarnEmptyHivePoolOnce();
+            return;
+        }
+
+        string chessId = tableWave.BossInfo.SpawnPoolChessIds[UnityEngine.Random.Range(0, tableWave.BossInfo.SpawnPoolChessIds.Count)];
+        if (string.IsNullOrWhiteSpace(chessId))
+        {
+            return;
+        }
+
+        int spawnX = RollSpawnXWithoutRepeat();
+        SpawnEnemyAtChessId(chessId, new Vector2Int(spawnX, GameFlowManager.EnemyNestY), false);
+    }
+
     private void SpawnHiveEnemy(EnemyWaveConfig waveConfig)
     {
         if (waveConfig == null)
@@ -395,12 +496,7 @@ public class EnemySpawnManager : MonoBehaviour
 
         if (waveConfig.hiveEnemyPool == null || waveConfig.hiveEnemyPool.Count == 0)
         {
-            if (!warnedEmptyHivePool)
-            {
-                warnedEmptyHivePool = true;
-                Debug.LogWarning("<color=orange>[Soft Enrage Spawn]</color> Current wave hiveEnemyPool is empty. Hive periodic spawning is skipped.");
-            }
-
+            WarnEmptyHivePoolOnce();
             return;
         }
 
@@ -411,27 +507,46 @@ public class EnemySpawnManager : MonoBehaviour
         }
 
         int spawnX = RollSpawnXWithoutRepeat();
-        SpawnEnemyAt(prefab, new Vector2Int(spawnX, GameFlowManager.EnemyNestY), false);
+        SpawnEnemyAtPrefab(prefab, new Vector2Int(spawnX, GameFlowManager.EnemyNestY), false);
     }
 
-    private UnitLogic SpawnEnemyAt(GameObject prefab, Vector2Int gridPosition, bool isHive)
+    private UnitLogic SpawnEnemyAtChessId(string chessId, Vector2Int gridPosition, bool isHive)
     {
+        if (!ValidateSpawnRequest(chessId, gridPosition))
+        {
+            return null;
+        }
+
+        UnitDataManager unitDataManager = UnitDataManager.Instance;
+        if (unitDataManager == null)
+        {
+            if (!warnedMissingUnitDataManager)
+            {
+                warnedMissingUnitDataManager = true;
+                Debug.LogWarning("<color=orange>[Enemy Spawn]</color> UnitDataManager is missing. Cannot spawn ChessId=" + chessId + " from WaveNode.csv.");
+            }
+
+            return null;
+        }
+
+        UnitLogic unit = unitDataManager.SpawnUnitOnBoard(chessId, Vector3.zero, UnitFaction.Enemy);
+        if (unit == null)
+        {
+            return null;
+        }
+
+        return PrepareSpawnedEnemy(unit, gridPosition, isHive);
+    }
+
+    private UnitLogic SpawnEnemyAtPrefab(GameObject prefab, Vector2Int gridPosition, bool isHive)
+    {
+        if (prefab == null || !ValidateSpawnRequest(prefab.name, gridPosition))
+        {
+            return null;
+        }
+
         GridManager gridManager = GridManager.Instance;
-        if (gridManager == null || gridManager.battlefieldContainer == null)
-        {
-            Debug.LogWarning("<color=orange>[Enemy Spawn]</color> Missing battlefieldContainer. Cannot spawn enemy.");
-            return null;
-        }
-
-        if (!gridManager.IsInsideBattlefield(gridPosition))
-        {
-            Debug.LogWarning("<color=orange>[Enemy Spawn]</color> Grid position " + gridPosition + " is outside the 5x5 battlefield. Skipped.");
-            return null;
-        }
-
         GameObject enemyObject = Instantiate(prefab, gridManager.battlefieldContainer);
-        enemyObject.transform.localPosition = new Vector3(gridPosition.x, gridPosition.y, 0f);
-
         UnitLogic unit = enemyObject.GetComponent<UnitLogic>();
         if (unit == null)
         {
@@ -440,6 +555,37 @@ public class EnemySpawnManager : MonoBehaviour
             return null;
         }
 
+        return PrepareSpawnedEnemy(unit, gridPosition, isHive);
+    }
+
+    private bool ValidateSpawnRequest(string spawnLabel, Vector2Int gridPosition)
+    {
+        GridManager gridManager = GridManager.Instance;
+        if (gridManager == null || gridManager.battlefieldContainer == null)
+        {
+            Debug.LogWarning("<color=orange>[Enemy Spawn]</color> Missing battlefieldContainer. Cannot spawn enemy.");
+            return false;
+        }
+
+        if (!gridManager.IsInsideBattlefield(gridPosition))
+        {
+            Debug.LogWarning("<color=orange>[Enemy Spawn]</color> Grid position " + gridPosition + " is outside the 5x5 battlefield. Skipped: " + spawnLabel);
+            return false;
+        }
+
+        return true;
+    }
+
+    private UnitLogic PrepareSpawnedEnemy(UnitLogic unit, Vector2Int gridPosition, bool isHive)
+    {
+        GridManager gridManager = GridManager.Instance;
+        if (unit == null || gridManager == null || gridManager.battlefieldContainer == null)
+        {
+            return null;
+        }
+
+        unit.transform.SetParent(gridManager.battlefieldContainer, false);
+        unit.transform.localPosition = new Vector3(gridPosition.x, gridPosition.y, 0f);
         unit.SetFaction(UnitFaction.Enemy);
         unit.SetGridPosition(gridPosition);
         unit.SetVeteran(false);
@@ -475,17 +621,50 @@ public class EnemySpawnManager : MonoBehaviour
         return spawnX;
     }
 
-    private float GetCurrentSpawnInterval(EnemyWaveConfig waveConfig = null)
+    private float GetCurrentSpawnInterval()
     {
-        EnemyWaveConfig currentWaveConfig = waveConfig != null ? waveConfig : GetCurrentWaveConfig();
-        if (currentWaveConfig == null)
+        WaveNodeData tableWave = GetCurrentTableWaveData();
+        if (tableWave != null)
+        {
+            return GetCurrentSpawnInterval(tableWave);
+        }
+
+        return GetCurrentSpawnInterval(GetCurrentFallbackWaveConfig());
+    }
+
+    private float GetCurrentSpawnInterval(WaveNodeData tableWave)
+    {
+        if (tableWave == null || tableWave.BossSpawn == null)
         {
             return 0.1f;
         }
 
         float elapsed = GameFlowManager.Instance != null ? GameFlowManager.Instance.BattleElapsedSeconds : 0f;
-        float interval = currentWaveConfig.baseSpawnInterval - elapsed * currentWaveConfig.enrageAcceleration;
-        return Mathf.Max(currentWaveConfig.minSpawnInterval, interval);
+        float interval = tableWave.BossSpawn.BaseSpawnInterval - elapsed * tableWave.BossSpawn.EnrageAcceleration;
+        return Mathf.Max(tableWave.BossSpawn.MinSpawnInterval, interval);
+    }
+
+    private float GetCurrentSpawnInterval(EnemyWaveConfig waveConfig)
+    {
+        if (waveConfig == null)
+        {
+            return 0.1f;
+        }
+
+        float elapsed = GameFlowManager.Instance != null ? GameFlowManager.Instance.BattleElapsedSeconds : 0f;
+        float interval = waveConfig.baseSpawnInterval - elapsed * waveConfig.enrageAcceleration;
+        return Mathf.Max(waveConfig.minSpawnInterval, interval);
+    }
+
+    private void WarnEmptyHivePoolOnce()
+    {
+        if (warnedEmptyHivePool)
+        {
+            return;
+        }
+
+        warnedEmptyHivePool = true;
+        Debug.LogWarning("<color=orange>[Soft Enrage Spawn]</color> Current wave hive spawn pool is empty. Hive periodic spawning is skipped.");
     }
 
     private void ClearWarnings()

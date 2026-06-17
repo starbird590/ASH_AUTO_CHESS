@@ -1,0 +1,4 @@
+节点ID,层级位置,拥有的关卡配置,接续节点ID,基础奖励,胜利奖励,失败补偿
+NodeId,LayerIndex,BattleWaveIds,NextNodeId,BaseReward,VictoryBonus,DefeatBonus
+N1001,0,"{W1001,W1002,W1003}",N1002,10,5,3
+N1002,1,"{W1004,W1005,W1006}",,10,5,3

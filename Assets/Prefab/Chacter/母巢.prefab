@@ -101,7 +101,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c00835bcb2dfd02409059e80dcc9ab4e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  unitDataConfig: {fileID: 0}
+  unitDataConfig: {fileID: 11400000, guid: b17f1d79a1fef174a812fd6e3f90063b, type: 2}
   bulletPrefab: {fileID: 5052129100641712147, guid: 03219999414fcbf4c8c37a1cbcfae454, type: 3}
   firePoint: {fileID: 0}
   modelContainer: {fileID: 0}

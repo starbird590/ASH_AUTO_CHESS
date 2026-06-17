@@ -10,12 +10,16 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7eab02dc822ae334fac34b5fb1d4abf5, type: 3}
-  m_Name: 1
+  m_Name: N1001
   m_EditorClassIdentifier: 
-  nodeId: 002_1
-  layerIndex: 1
-  battleWaveIds: 01000000
-  nextNodes: []
-  baseReward: 5
-  victoryBonus: 10
+  nodeId: N1001
+  layerIndex: 0
+  battleWaveIds:
+  - W1001
+  - W1002
+  - W1003
+  nextNodes:
+  - {fileID: 11400000, guid: 863fc4754b80b004186ec3d6073a7796, type: 2}
+  baseReward: 10
+  victoryBonus: 5
   defeatBonus: 3
