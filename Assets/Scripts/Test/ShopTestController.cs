@@ -107,11 +107,21 @@ public class ShopTestController : MonoBehaviour
             Debug.LogWarning("<color=orange>[后勤拦截]</color> 你目前没有选中任何小兵！请先在场景/备战席里鼠标左键点击一个小兵。");
             return false;
         }
-        if (!target.IsAlive)
+
+        if (GameFlowManager.Instance != null && GameFlowManager.Instance.CurrentState != GameState.Intermission)
         {
-            currentlySelectedUnit = null;
+            Debug.LogWarning("<color=orange>[后勤拦截]</color> 只有整备阶段 Intermission 可以执行修理/退役。");
             return false;
         }
+
+        if (target.faction != UnitFaction.Player)
+        {
+            currentlySelectedUnit = null;
+            Debug.LogWarning("<color=orange>[后勤拦截]</color> 只能对玩家单位执行修理/退役。");
+            return false;
+        }
+
+        // 0 HP 的玩家单位在整备阶段仍然是合法后勤对象，不能用 IsAlive 把它们挡掉。
         return true;
     }
 

@@ -574,6 +574,11 @@ public class ShopManager : MonoBehaviour
         }
 
         SpendFunds(repairCost);
+        if (!unit.gameObject.activeSelf)
+        {
+            unit.gameObject.SetActive(true);
+        }
+
         unit.SetCurrentHp(unit.maxHp);
         Debug.Log("<color=green>[修理成功]</color> 花费 " + repairCost + "，单位生命值已恢复至满。");
         return true;
