@@ -1174,7 +1174,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0.5}
   m_AnchorMax: {x: 0, y: 0.5}
-  m_AnchoredPosition: {x: 0, y: 531.50006}
+  m_AnchoredPosition: {x: 0, y: 531.5001}
   m_SizeDelta: {x: 1903, y: 1063}
   m_Pivot: {x: 0, y: 1}
 --- !u!1 &145802579
@@ -2162,7 +2162,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 570081302}
   m_Direction: 2
   m_Value: 0
-  m_Size: 1
+  m_Size: 0.9210685
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -3668,7 +3668,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 921565081}
   m_Direction: 2
   m_Value: 0
-  m_Size: 1
+  m_Size: 0.92129487
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -6125,9 +6125,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8ee2ae233e3f0724782622445f384d9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  allNodes:
-  - {fileID: 11400000, guid: c6b85ff6c02b14e4cbe5aad0065a1cb9, type: 2}
-  - {fileID: 11400000, guid: ae8ff9ee87b01ca429cb1ef40659e19d, type: 2}
+  allNodes: []
   mapNodeCsv: {fileID: 4900000, guid: ffc2c19447f3b5443a790e09069e92c6, type: 3}
   waveNodeCsv: {fileID: 4900000, guid: 2b1b94e66ddfd40469dc908508e9b99a, type: 3}
   mapNodeCsvAssetPath: Assets/Data/MapNode.csv
@@ -6139,7 +6137,7 @@ MonoBehaviour:
   currentNodeId: 
   currentLayerIndex: -1
   currentNodeCompleted: 0
-  currentBattleWaveId: -1
+  currentBattleWaveId: 
 --- !u!4 &1112584184
 Transform:
   m_ObjectHideFlags: 0
@@ -7744,49 +7742,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   warningProjectionPrefab: {fileID: 6112814712300584199, guid: 3e9644c2f5f92154f9ad4533ea53f29f, type: 3}
-  initialEnemyConfigs:
-  - enemyName: 
-    enemyPrefab: {fileID: 6112814712300584199, guid: 115e43b4f3e49744f8d827e8e32e3872, type: 3}
-    gridPosition: {x: 0, y: 3}
-  - enemyName: 
-    enemyPrefab: {fileID: 6112814712300584199, guid: 115e43b4f3e49744f8d827e8e32e3872, type: 3}
-    gridPosition: {x: 4, y: 3}
-  enemyWaveConfigs:
-  - waveId: 0
-    initialEnemyConfigs:
-    - enemyName: 
-      enemyPrefab: {fileID: 6112814712300584199, guid: 115e43b4f3e49744f8d827e8e32e3872, type: 3}
-      gridPosition: {x: 0, y: 3}
-    - enemyName: 
-      enemyPrefab: {fileID: 6112814712300584199, guid: 99bd08870847fdd42af262723f5fccbb, type: 3}
-      gridPosition: {x: 4, y: 3}
-    hiveBossPrefab: {fileID: 0}
-    hiveGridPosition: {x: 0, y: 0}
-    hiveMaxHp: 1
-    hiveArmor: 0
-    hiveThreatValue: 0
-    hiveEnemyPool: []
-    baseSpawnInterval: 6
-    enrageAcceleration: 0.05
-    minSpawnInterval: 1.2
-  - waveId: 1
-    initialEnemyConfigs:
-    - enemyName: 
-      enemyPrefab: {fileID: 6112814712300584199, guid: 99bd08870847fdd42af262723f5fccbb, type: 3}
-      gridPosition: {x: 0, y: 3}
-    - enemyName: 
-      enemyPrefab: {fileID: 6112814712300584199, guid: 115e43b4f3e49744f8d827e8e32e3872, type: 3}
-      gridPosition: {x: 4, y: 3}
-    hiveBossPrefab: {fileID: 6112814712300584199, guid: ce6267bf0b3e9e246aae586b6b4acbf8, type: 3}
-    hiveGridPosition: {x: 2, y: 4}
-    hiveMaxHp: 100
-    hiveArmor: 0
-    hiveThreatValue: 0
-    hiveEnemyPool:
-    - {fileID: 6112814712300584199, guid: 115e43b4f3e49744f8d827e8e32e3872, type: 3}
-    baseSpawnInterval: 6
-    enrageAcceleration: 0.05
-    minSpawnInterval: 6
+  initialEnemyConfigs: []
+  enemyWaveConfigs: []
 --- !u!4 &1423696641
 Transform:
   m_ObjectHideFlags: 0
@@ -9004,7 +8961,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: -0.000009430424}
+  m_AnchoredPosition: {x: 0, y: 0.000036883957}
   m_SizeDelta: {x: 0, y: 300}
   m_Pivot: {x: 0, y: 1}
 --- !u!1 &1761423608

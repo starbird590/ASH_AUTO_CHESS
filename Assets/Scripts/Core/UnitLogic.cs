@@ -388,6 +388,8 @@ public sealed class UnitLogic : MonoBehaviour
         set => runtimeCaptureSpeed = Mathf.Max(0f, value);
     }
 
+    public float CaptureSpeed => captureSpeed;
+
     public int threatValue
     {
         get => ShouldPreviewConfig() ? Mathf.Max(0, unitDataConfig.threatValue) : runtimeThreatValue;
@@ -657,6 +659,12 @@ public sealed class UnitLogic : MonoBehaviour
             attackCooldown = 0f;
             targetSearchCooldown = 0f;
         }
+    }
+
+    public void SwitchToPushLineDirective()
+    {
+        runtimePlayerDirective = PlayerDirective.PushLine;
+        currentTarget = null;
     }
 
     public void SetFaction(UnitFaction nextFaction)

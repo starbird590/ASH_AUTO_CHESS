@@ -479,6 +479,28 @@ public class GameFlowManager : MonoBehaviour
             strategicLineCaptureProgress + amount,
             0f,
             strategicLineCaptureRequired);
+
+        if (IsStrategicLineCaptured)
+        {
+            SwitchPlayerCaptureUnitsToPushLine();
+        }
+    }
+
+    private void SwitchPlayerCaptureUnitsToPushLine()
+    {
+        for (int i = 0; i < playerUnits.Count; i++)
+        {
+            UnitLogic unit = playerUnits[i];
+            if (unit == null
+                || unit.faction != UnitFaction.Player
+                || !unit.IsAlive
+                || unit.playerDirective != PlayerDirective.CapturePoint)
+            {
+                continue;
+            }
+
+            unit.SwitchToPushLineDirective();
+        }
     }
 
     public void AddFunds(int amount)

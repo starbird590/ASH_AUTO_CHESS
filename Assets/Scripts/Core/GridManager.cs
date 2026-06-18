@@ -17,9 +17,14 @@ public class GridManager : MonoBehaviour
     public Transform reserveContainer;
 
     [Header("Neutral Capture Points")]
+    [SerializeField] private bool useFullStrategicLineCapturePoints = true;
     [SerializeField] private List<Vector2Int> neutralCapturePoints = new List<Vector2Int>
     {
-        new Vector2Int(GameFlowManager.BoardWidth / 2, GameFlowManager.StrategicLineY)
+        new Vector2Int(0, GameFlowManager.StrategicLineY),
+        new Vector2Int(1, GameFlowManager.StrategicLineY),
+        new Vector2Int(2, GameFlowManager.StrategicLineY),
+        new Vector2Int(3, GameFlowManager.StrategicLineY),
+        new Vector2Int(4, GameFlowManager.StrategicLineY)
     };
 
     private readonly Dictionary<Vector2Int, UnitLogic> battlefieldOccupancy = new Dictionary<Vector2Int, UnitLogic>();
@@ -238,6 +243,11 @@ public class GridManager : MonoBehaviour
         float nearestDistance = float.MaxValue;
         capturePoint = default;
 
+        if (useFullStrategicLineCapturePoints)
+        {
+            return TryGetNearestStrategicLineCapturePoint(currentGridPosition, out capturePoint);
+        }
+
         if (neutralCapturePoints != null)
         {
             for (int i = 0; i < neutralCapturePoints.Count; i++)
@@ -265,6 +275,32 @@ public class GridManager : MonoBehaviour
 
         capturePoint = GetDefaultNeutralCapturePoint();
         return IsInsideBattlefield(capturePoint);
+    }
+
+    private bool TryGetNearestStrategicLineCapturePoint(Vector2 currentGridPosition, out Vector2Int capturePoint)
+    {
+        capturePoint = default;
+        bool foundPoint = false;
+        float nearestDistance = float.MaxValue;
+
+        for (int x = 0; x < GameFlowManager.BoardWidth; x++)
+        {
+            Vector2Int candidate = new Vector2Int(x, GameFlowManager.StrategicLineY);
+            if (!IsInsideBattlefield(candidate))
+            {
+                continue;
+            }
+
+            float distance = Vector2.Distance(currentGridPosition, candidate);
+            if (distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                capturePoint = candidate;
+                foundPoint = true;
+            }
+        }
+
+        return foundPoint;
     }
 
     public Vector3 GetBattlefieldWorldPosition(Vector2Int gridPos, float worldZ)
