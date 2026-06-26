@@ -1,0 +1,4 @@
+UnionId,UnionName,UnionDes,UnionIcon,,UnionId,羁绊ID,字符与整数都可以读
+羁绊ID,羁绊名称,羁绊描述,羁绊图标,,UnionName,羁绊名称,字符
+S_001,轻坦帮,给我方单位提供5护甲,,,UnionDes,羁绊描述,字符
+,,,,,UnionIcon,羁绊图标,读取路径

@@ -16,7 +16,7 @@ MonoBehaviour:
   chessName: "\u706B\u529B\u8F93\u51FA-\u7279\u6548-\u68CB\u5B50A\u2605\u2605"
   unitPrefab: {fileID: 0}
   unitSprite: {fileID: 21300000, guid: 665fc766d34c2864c806023a1b0a7124, type: 3}
-  unionId: 
+  unionId: S_001
   faction: 0
   playerDirective: 0
   unitCost: 1
@@ -49,3 +49,4 @@ MonoBehaviour:
   moveSpeed: 0.9
   captureSpeed: 0.2
   threatValue: 30
+  skillIds: 

@@ -29,12 +29,12 @@ public class GameFlowManager : MonoBehaviour
     private const string PopulationLimitSaveKey = "GameFlow.PopulationLimit";
     private const string CurrentStageIndexSaveKey = "GameFlow.CurrentStageIndex";
 
-    public const int BoardWidth = 5;
-    public const int BoardHeight = 5;
-    public const int PlayerDeployMinY = 0;
-    public const int PlayerDeployMaxY = 1;
-    public const int StrategicLineY = 2;
-    public const int EnemyNestY = 4;
+    public const int BoardWidth = BoardLayout.BattlefieldWidth;
+    public const int BoardHeight = BoardLayout.BattlefieldHeight;
+    public const int PlayerDeployMinY = BoardLayout.PlayerDeployMinY;
+    public const int PlayerDeployMaxY = BoardLayout.PlayerDeployMaxY;
+    public const int StrategicLineY = BoardLayout.StrategicLineY;
+    public const int EnemyNestY = BoardLayout.EnemyNestY;
 
     [Header("Global Runtime Data")]
     [SerializeField] private GameState currentState = GameState.Result;
@@ -429,17 +429,12 @@ public class GameFlowManager : MonoBehaviour
     /// </summary>
     public bool IsPlayerDeploymentCell(Vector2Int gridPosition)
     {
-        return IsInsideBoard(gridPosition)
-            && gridPosition.y >= PlayerDeployMinY
-            && gridPosition.y <= PlayerDeployMaxY;
+        return BoardLayout.IsInsidePlayerDeploymentArea(gridPosition);
     }
 
     public bool IsInsideBoard(Vector2Int gridPosition)
     {
-        return gridPosition.x >= 0
-            && gridPosition.x < BoardWidth
-            && gridPosition.y >= 0
-            && gridPosition.y < BoardHeight;
+        return BoardLayout.IsInsideBattlefield(gridPosition);
     }
 
     public bool IsCellOccupied(Vector2Int gridPosition, UnitLogic ignoredUnit = null)
@@ -598,14 +593,7 @@ public class GameFlowManager : MonoBehaviour
     {
         if (hasPendingBattleResult)
         {
-            if (ShopManager.Instance != null)
-            {
-                ShopManager.Instance.AddFunds(pendingStageReward);
-            }
-            else
-            {
-                AddFunds(pendingStageReward);
-            }
+            AddFunds(pendingStageReward);
 
             SnapshotSurvivorHp();
             ResetSurvivorsToBattleStartPositions();
@@ -710,6 +698,8 @@ public class GameFlowManager : MonoBehaviour
                 unit.SetCombatEnabled(true);
             }
         }
+
+        SkillRuntimeManager.Instance.QueueBattleStart();
     }
 
     protected virtual void ExitBattle()
@@ -720,6 +710,11 @@ public class GameFlowManager : MonoBehaviour
         }
 
         DisableAllPlayerCombat();
+        if (SkillRuntimeManager.HasInstance)
+        {
+            SkillRuntimeManager.Instance.HandleBattleEnded();
+        }
+
         if (SynergyManager.Instance != null)
         {
             SynergyManager.Instance.ClearAllSynergyEffects();

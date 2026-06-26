@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: affeae24138cebd4db9a5b3289ca4f6a, type: 3}
+  m_Name: S_001
+  m_EditorClassIdentifier: 
+  unionId: S_001
+  traitName: "\u8F7B\u5766\u5E2E"
+  icon: {fileID: 0}
+  description: "\u7ED9\u6211\u65B9\u5355\u4F4D\u63D0\u4F9B5\u62A4\u7532"
+  tiers:
+  - unionChildId: S_00101
+    unionCounts: 1
+    levelDescription: "\u4F1A\u4E3A\u8F7B\u5766\u5E2E\u5355\u4F4D\u989D\u5916\u63D0\u4F9B10\u70B9\u62A4\u7532"
+    skillIds: S10000;S10001
+  - unionChildId: S_00102
+    unionCounts: 2
+    levelDescription: "\u4F1A\u4E3A\u8F7B\u5766\u5E2E\u5355\u4F4D\u989D\u5916\u63D0\u4F9B15\u70B9\u62A4\u7532"
+    skillIds: S10000;S10002
+  thresholds: 0100000002000000
+  tierEffects:
+  - damageBonusPercent: 0
+    armorBonus: 0
+    attackIntervalReduction: 0
+  - damageBonusPercent: 0
+    armorBonus: 0
+    attackIntervalReduction: 0
+  - damageBonusPercent: 0
+    armorBonus: 0
+    attackIntervalReduction: 0

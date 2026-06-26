@@ -368,7 +368,7 @@ public static class StageTableParser
         }
 
         result.BossChessId = CleanCell(parts[0]);
-        result.GridPosition = new Vector2Int(ParseIntOrDefault(parts[1], 0), ParseIntOrDefault(parts[2], GameFlowManager.EnemyNestY));
+        result.GridPosition = new Vector2Int(ParseIntOrDefault(parts[1], 0), ParseIntOrDefault(parts[2], BoardLayout.EnemyNestY));
         for (int i = 3; i < parts.Count; i++)
         {
             List<string> spawnIds = ParseStringList(parts[i]);

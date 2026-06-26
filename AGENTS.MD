@@ -414,3 +414,16 @@ Unity 配置重点：
 13. 如果改了羁绊，确认左侧羁绊 UI 和战斗属性加成都正确。
 14. 如果改了 CSV，确认 Unity 自动生成/更新对应资产，并检查 Console 是否有导入警告。
 15. 如果改了后勤面板，确认资金、Cost、等级、经验显示同步刷新。
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues for `starbird590/ASH_AUTO_CHESS`; external PRs are not treated as a triage request surface. See `Docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+This repo uses the default mattpocock/skills triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix`. See `Docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repo uses a single-context domain docs layout. See `Docs/agents/domain.md`.

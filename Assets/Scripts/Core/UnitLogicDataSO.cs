@@ -40,4 +40,5 @@ public class UnitLogicDataSO : ScriptableObject
     public float moveSpeed;
     public float captureSpeed;
     public int threatValue;
+    public string skillIds;
 }

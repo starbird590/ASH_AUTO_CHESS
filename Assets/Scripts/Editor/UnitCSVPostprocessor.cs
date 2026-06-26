@@ -21,12 +21,26 @@ public sealed class UnitCSVPostprocessor : AssetPostprocessor
             return;
         }
 
+        if (TraitCSVImporter.IsSilentTraitImportRunning)
+        {
+            return;
+        }
+
         if (ContainsShopCsv(importedAssets)
             || ContainsShopCsv(deletedAssets)
             || ContainsShopCsv(movedAssets)
             || ContainsShopCsv(movedFromAssetPaths))
         {
             ShopManagerCSVImporter.ExecuteSilentShopImport();
+        }
+
+        if (ContainsTraitCsv(importedAssets)
+            || ContainsTraitCsv(deletedAssets)
+            || ContainsTraitCsv(movedAssets)
+            || ContainsTraitCsv(movedFromAssetPaths)
+            || ContainsTraitIcon(importedAssets))
+        {
+            TraitCSVImporter.ExecuteSilentTraitImport();
         }
 
         if (ContainsMapNodeCsv(importedAssets))
@@ -154,6 +168,69 @@ public sealed class UnitCSVPostprocessor : AssetPostprocessor
             string fileName = Path.GetFileName(normalizedPath);
             if (string.Equals(fileName, "MapNode.csv", StringComparison.Ordinal)
                 && string.Equals(normalizedPath, StageMapCSVImporter.MapNodeCsvPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsTraitCsv(string[] assetPaths)
+    {
+        if (assetPaths == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < assetPaths.Length; i++)
+        {
+            string assetPath = assetPaths[i];
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                continue;
+            }
+
+            string normalizedPath = assetPath.Replace('\\', '/');
+            string fileName = Path.GetFileName(normalizedPath);
+            if ((string.Equals(fileName, "Trait.csv", StringComparison.Ordinal)
+                    && string.Equals(normalizedPath, TraitCSVImporter.TraitCsvPath, StringComparison.OrdinalIgnoreCase))
+                || (string.Equals(fileName, "TraitTier.csv", StringComparison.Ordinal)
+                    && string.Equals(normalizedPath, TraitCSVImporter.TraitTierCsvPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsTraitIcon(string[] assetPaths)
+    {
+        if (assetPaths == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < assetPaths.Length; i++)
+        {
+            string assetPath = assetPaths[i];
+            if (string.IsNullOrWhiteSpace(assetPath))
+            {
+                continue;
+            }
+
+            string normalizedPath = assetPath.Replace('\\', '/');
+            if (!normalizedPath.StartsWith(TraitCSVImporter.TraitIconFolder + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string extension = Path.GetExtension(normalizedPath);
+            if (string.Equals(extension, ".png", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".jpg", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".jpeg", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(extension, ".psd", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

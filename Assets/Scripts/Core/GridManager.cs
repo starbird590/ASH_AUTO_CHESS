@@ -10,7 +10,7 @@ public class GridManager : MonoBehaviour
 {
     public static GridManager Instance { get; private set; }
 
-    public const int MaxReserveSlots = 9;
+    public const int MaxReserveSlots = BoardLayout.ReserveSlotCount;
 
     [Header("Grid Containers")]
     public Transform battlefieldContainer;
@@ -20,11 +20,11 @@ public class GridManager : MonoBehaviour
     [SerializeField] private bool useFullStrategicLineCapturePoints = true;
     [SerializeField] private List<Vector2Int> neutralCapturePoints = new List<Vector2Int>
     {
-        new Vector2Int(0, GameFlowManager.StrategicLineY),
-        new Vector2Int(1, GameFlowManager.StrategicLineY),
-        new Vector2Int(2, GameFlowManager.StrategicLineY),
-        new Vector2Int(3, GameFlowManager.StrategicLineY),
-        new Vector2Int(4, GameFlowManager.StrategicLineY)
+        new Vector2Int(0, BoardLayout.StrategicLineY),
+        new Vector2Int(1, BoardLayout.StrategicLineY),
+        new Vector2Int(2, BoardLayout.StrategicLineY),
+        new Vector2Int(3, BoardLayout.StrategicLineY),
+        new Vector2Int(4, BoardLayout.StrategicLineY)
     };
 
     private readonly Dictionary<Vector2Int, UnitLogic> battlefieldOccupancy = new Dictionary<Vector2Int, UnitLogic>();
@@ -214,25 +214,17 @@ public class GridManager : MonoBehaviour
 
     public bool IsInsideBattlefield(Vector2Int gridPos)
     {
-        return gridPos.x >= 0
-            && gridPos.x < GameFlowManager.BoardWidth
-            && gridPos.y >= 0
-            && gridPos.y < GameFlowManager.BoardHeight;
+        return BoardLayout.IsInsideBattlefield(gridPos);
     }
 
     public bool IsInsidePlayerDeploymentArea(Vector2Int gridPos)
     {
-        return gridPos.x >= 0
-            && gridPos.x < GameFlowManager.BoardWidth
-            && gridPos.y >= GameFlowManager.PlayerDeployMinY
-            && gridPos.y <= GameFlowManager.PlayerDeployMaxY;
+        return BoardLayout.IsInsidePlayerDeploymentArea(gridPos);
     }
 
     public bool IsInsideReserve(Vector2Int reservePos)
     {
-        return reservePos.x >= 0
-            && reservePos.x < MaxReserveSlots
-            && reservePos.y == 0;
+        return BoardLayout.IsInsideReserve(reservePos);
     }
 
     public bool TryGetNearestNeutralCapturePoint(Vector3 worldPosition, out Vector2Int capturePoint)
@@ -283,9 +275,9 @@ public class GridManager : MonoBehaviour
         bool foundPoint = false;
         float nearestDistance = float.MaxValue;
 
-        for (int x = 0; x < GameFlowManager.BoardWidth; x++)
+        for (int x = 0; x < BoardLayout.BattlefieldWidth; x++)
         {
-            Vector2Int candidate = new Vector2Int(x, GameFlowManager.StrategicLineY);
+            Vector2Int candidate = new Vector2Int(x, BoardLayout.StrategicLineY);
             if (!IsInsideBattlefield(candidate))
             {
                 continue;
@@ -322,7 +314,7 @@ public class GridManager : MonoBehaviour
 
     private Vector2Int GetDefaultNeutralCapturePoint()
     {
-        return new Vector2Int(GameFlowManager.BoardWidth / 2, GameFlowManager.StrategicLineY);
+        return BoardLayout.StrategicLineCenter;
     }
 
     private void NotifySynergyChanged()

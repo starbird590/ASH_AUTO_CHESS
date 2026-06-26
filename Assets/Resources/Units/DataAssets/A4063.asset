@@ -49,3 +49,4 @@ MonoBehaviour:
   moveSpeed: 0.7
   captureSpeed: 0.8
   threatValue: 219
+  skillIds: 

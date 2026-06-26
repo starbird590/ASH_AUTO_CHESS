@@ -279,6 +279,13 @@ public class StageMapManager : MonoBehaviour
         return TryGetWaveNode(currentBattleWaveId, out waveNode);
     }
 
+    public bool TryGetCurrentWaveNode(out WaveNodeData waveNode, out bool hasWaveTableRows)
+    {
+        EnsureCsvTablesLoaded();
+        hasWaveTableRows = tableDatabase.HasWaveNodes;
+        return tableDatabase.TryGetWaveNode(currentBattleWaveId, out waveNode);
+    }
+
     public void ResetMapProgress()
     {
         currentNodeId = string.Empty;

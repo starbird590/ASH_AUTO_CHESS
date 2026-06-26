@@ -106,9 +106,9 @@ MonoBehaviour:
   firePoint: {fileID: 0}
   modelContainer: {fileID: 0}
   baseTraits:
-  - {fileID: 11400000, guid: 64f2657e872b55a4ba2a4e603232f5d5, type: 2}
-  - {fileID: 11400000, guid: d5176987144359e47a72732fc4540b8f, type: 2}
-  synergyIdentityOverride: "\u864E\u5F0F"
+  - {fileID: 0}
+  - {fileID: 0}
+  synergyIdentityOverride: 
   runtimeFaction: 0
   runtimePlayerDirective: 0
   runtimeUnitCost: 1
@@ -149,6 +149,8 @@ MonoBehaviour:
   hasGridPosition: 0
   gridPosition: {x: 0, y: 0}
   runtimeInBayonetMode: 0
+  runtimeIsSummoned: 0
+  runtimeTemporaryShield: 0
 --- !u!114 &186122334077149941
 MonoBehaviour:
   m_ObjectHideFlags: 0

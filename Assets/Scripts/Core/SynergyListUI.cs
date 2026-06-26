@@ -10,7 +10,16 @@ public class SynergyListUI : MonoBehaviour
     public SynergyItemUI itemPrefab;
     public Transform contentRoot;
 
+    [Header("Detail Popup")]
+    public SynergyDetailPanelUI detailPanelView;
+    public float longPressSeconds = 0.45f;
+
     private readonly List<SynergyItemUI> itemPool = new List<SynergyItemUI>();
+
+    public float LongPressSeconds
+    {
+        get { return Mathf.Max(0.1f, longPressSeconds); }
+    }
 
     private void OnEnable()
     {
@@ -59,10 +68,11 @@ public class SynergyListUI : MonoBehaviour
         }
 
         int visibleIndex = 0;
-        Dictionary<TraitSO, int> ledger = SynergyManager.Instance.CurrentTraitCounts;
-        foreach (KeyValuePair<TraitSO, int> pair in ledger)
+        IReadOnlyList<TraitSynergyDisplayModel> displayModels = SynergyManager.Instance.TraitDisplayModels;
+        for (int modelIndex = 0; modelIndex < displayModels.Count; modelIndex++)
         {
-            if (pair.Key == null || pair.Value <= 0)
+            TraitSynergyDisplayModel displayModel = displayModels[modelIndex];
+            if (displayModel == null || displayModel.Trait == null || displayModel.UnitCount <= 0)
             {
                 continue;
             }
@@ -74,9 +84,32 @@ public class SynergyListUI : MonoBehaviour
             }
 
             item.transform.SetParent(contentRoot, false);
-            item.Refresh(pair.Key, pair.Value);
+            item.SetOwner(this);
+            item.Refresh(displayModel);
             item.gameObject.SetActive(true);
             visibleIndex++;
+        }
+    }
+
+    public void ShowTraitDetails(TraitSynergyDisplayModel displayModel, Vector2 screenPosition)
+    {
+        if (displayModel == null || displayModel.Trait == null)
+        {
+            HideTraitDetails();
+            return;
+        }
+
+        if (detailPanelView != null)
+        {
+            detailPanelView.Show(displayModel, screenPosition);
+        }
+    }
+
+    public void HideTraitDetails()
+    {
+        if (detailPanelView != null)
+        {
+            detailPanelView.Hide();
         }
     }
 
@@ -85,6 +118,7 @@ public class SynergyListUI : MonoBehaviour
         while (itemPool.Count <= index)
         {
             SynergyItemUI newItem = Instantiate(itemPrefab, contentRoot);
+            newItem.SetOwner(this);
             newItem.gameObject.SetActive(false);
             itemPool.Add(newItem);
         }

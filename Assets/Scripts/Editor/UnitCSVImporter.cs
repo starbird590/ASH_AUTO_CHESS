@@ -49,7 +49,8 @@ public static class UnitCSVImporter
         "bayonetPenFlat",
         "moveSpeed",
         "captureSpeed",
-        "threatValue"
+        "threatValue",
+        "skillIds"
     };
 
     private static bool isSilentBatchImportRunning;
@@ -265,6 +266,7 @@ public static class UnitCSVImporter
         data.moveSpeed = GetFloat(row, columns, "moveSpeed");
         data.captureSpeed = GetFloat(row, columns, "captureSpeed");
         data.threatValue = GetInt(row, columns, "threatValue");
+        data.skillIds = GetString(row, columns, "skillIds");
     }
 
     private static void AssignUnitSprite(UnitLogicDataSO data, List<string> row, Dictionary<string, int> columns)

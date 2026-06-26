@@ -194,7 +194,7 @@ public class UnitDragHandler : MonoBehaviour
         //Debug.Log($"<color=yellow>[放手计算-备战]</color> 本地 X 轴算得: {targetReservePos.x} | 局部 Y 轴真实位移为: {reserveLocalPos.y:F2}");
 
         // 备战席只有 X 0~8 的一行
-        if (targetReservePos.x < 0 || targetReservePos.x >= GridManager.MaxReserveSlots)
+        if (!BoardLayout.IsInsideReserve(targetReservePos))
         {
            // Debug.Log($"<color=orange>[备战拦截]</color> X 轴坐标 {targetReservePos.x} 越界！有效范围是 0~8。");
             return false;

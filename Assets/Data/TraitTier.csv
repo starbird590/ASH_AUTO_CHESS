@@ -1,0 +1,5 @@
+UnionChildId,UnionId,UnionCounts,LevelDes,SkillId,,UnionChildId,羁绊子ID,整数,,
+羁绊子ID,羁绊ID,激活人数,对应描述,技能ID,,Unionld,羁绊ID,字符与整数都可以读,,与基础技能表中的UnionId对应
+S_00101,S_001,1,会为轻坦帮单位额外提供10点护甲,{S10000;S10001},,UnionCounts,激活人数,整数,,
+S_00102,S_001,2,会为轻坦帮单位额外提供15点护甲,{S10000;S10002},,LevelDes,对应描述,读取路径与字符,,
+,,,,,,SkillID,技能ID,字符与整数,{skillId1;skillId2},读技能表

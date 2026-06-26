@@ -53,6 +53,12 @@ public sealed class UnitLogic : MonoBehaviour
     private static readonly List<UnitLogic> activeUnits = new List<UnitLogic>();
     public static IReadOnlyList<UnitLogic> ActiveUnits => activeUnits;
 
+    public static event Action<UnitLogic, UnitLogic, int, AttackDamageTrack> UnitDamaged;
+    public static event Action<UnitLogic, UnitLogic> UnitDied;
+    public static event Action<UnitLogic, UnitLogic> UnitKilled;
+    public static event Action<UnitLogic, UnitLogic> FireAttackPerformed;
+    public static event Action<UnitLogic, UnitLogic> BayonetAttackPerformed;
+
     [Header("Static Table Data")]
     public UnitLogicDataSO unitDataConfig;
 
@@ -144,6 +150,8 @@ public sealed class UnitLogic : MonoBehaviour
     [SerializeField] private bool hasGridPosition;
     [SerializeField] private Vector2Int gridPosition;
     [SerializeField] private bool runtimeInBayonetMode;
+    [SerializeField] private bool runtimeIsSummoned;
+    [SerializeField] private int runtimeTemporaryShield;
 
     private readonly Dictionary<string, float> independentAmpModifiers = new Dictionary<string, float>();
     private readonly Dictionary<string, float> independentReductionModifiers = new Dictionary<string, float>();
@@ -415,9 +423,11 @@ public sealed class UnitLogic : MonoBehaviour
 
     public bool IsVeteran => runtimeIsVeteran;
     public bool IsPositionLocked => isPositionLocked;
+    public bool IsSummoned => runtimeIsSummoned;
     public bool IsCombatEnabled => isCombatEnabled;
     public bool HasGridPosition => hasGridPosition;
     public Vector2Int GridPosition => gridPosition;
+    public int TemporaryShield => runtimeTemporaryShield;
     public IReadOnlyList<TraitSO> RuntimeTraits => baseTraits;
 
     private void Awake()
@@ -512,6 +522,8 @@ public sealed class UnitLogic : MonoBehaviour
         }
 
         runtimeCurrentHp = runtimeMaxHp;
+        runtimeIsSummoned = false;
+        runtimeTemporaryShield = 0;
         runtimeValuesInitialized = true;
     }
 
@@ -677,6 +689,11 @@ public sealed class UnitLogic : MonoBehaviour
         runtimeIsVeteran = veteran;
     }
 
+    public void SetSummoned(bool summoned)
+    {
+        runtimeIsSummoned = summoned;
+    }
+
     public void SetPositionLocked(bool locked)
     {
         isPositionLocked = locked;
@@ -697,6 +714,40 @@ public sealed class UnitLogic : MonoBehaviour
     public void SetCurrentHp(int hp)
     {
         currentHp = hp;
+    }
+
+    public void AddTemporaryShield(int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        runtimeTemporaryShield = Mathf.Max(0, runtimeTemporaryShield + amount);
+    }
+
+    public void RemoveTemporaryShield(int amount)
+    {
+        if (amount <= 0)
+        {
+            return;
+        }
+
+        runtimeTemporaryShield = Mathf.Max(0, runtimeTemporaryShield - amount);
+    }
+
+    public void ReviveWithHp(int hp)
+    {
+        runtimeCurrentHp = Mathf.Clamp(hp, 1, runtimeMaxHp);
+        if (!gameObject.activeSelf)
+        {
+            gameObject.SetActive(true);
+        }
+
+        currentTarget = null;
+        attackCooldown = 0f;
+        targetSearchCooldown = 0f;
+        isCombatEnabled = GameFlowManager.Instance == null || GameFlowManager.Instance.CurrentState == GameState.Battle;
     }
 
     public string GetDisplayName()
@@ -726,30 +777,43 @@ public sealed class UnitLogic : MonoBehaviour
 
     public string GetSynergyIdentityKey()
     {
+        string dataKey = GetSynergyIdentityKey(unitDataConfig);
+        if (!string.IsNullOrWhiteSpace(dataKey))
+        {
+            return dataKey;
+        }
+
         if (!string.IsNullOrWhiteSpace(synergyIdentityOverride))
         {
             return synergyIdentityOverride.Trim();
         }
 
-        if (unitDataConfig != null)
+        return GetDisplayName();
+    }
+
+    public static string GetSynergyIdentityKey(UnitLogicDataSO unitData)
+    {
+        if (unitData == null)
         {
-            if (!string.IsNullOrWhiteSpace(unitDataConfig.unionId))
-            {
-                return unitDataConfig.unionId.Trim();
-            }
-
-            if (!string.IsNullOrWhiteSpace(unitDataConfig.chessName))
-            {
-                return StripStarSymbols(unitDataConfig.chessName);
-            }
-
-            if (!string.IsNullOrWhiteSpace(unitDataConfig.chessId))
-            {
-                return StripTrailingTierDigit(unitDataConfig.chessId);
-            }
+            return string.Empty;
         }
 
-        return GetDisplayName();
+        if (!string.IsNullOrWhiteSpace(unitData.chessId))
+        {
+            return StripTrailingTierDigit(unitData.chessId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(unitData.chessName))
+        {
+            return StripStarSymbols(unitData.chessName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(unitData.unionId))
+        {
+            return unitData.unionId.Trim();
+        }
+
+        return string.Empty;
     }
 
     public void AddCombatModifier(CombatModifierType modifierType, string sourceKey, float value)
@@ -1022,12 +1086,32 @@ public sealed class UnitLogic : MonoBehaviour
 
         int targetArmor = damageTrack == AttackDamageTrack.Bayonet ? bayonetArmor : armor;
         int finalDamage = CalculateFinalDamage(incomingDamage, targetArmor, penetrationPct, penetrationFlat);
-        currentHp -= finalDamage;
+        int hpDamage = AbsorbDamageWithTemporaryShield(finalDamage);
+        if (hpDamage > 0)
+        {
+            currentHp -= hpDamage;
+        }
+
+        UnitDamaged?.Invoke(this, attacker, hpDamage, damageTrack);
 
         if (currentHp <= 0)
         {
             Die(attacker);
         }
+    }
+
+    private int AbsorbDamageWithTemporaryShield(int incomingDamage)
+    {
+        int remainingDamage = Mathf.Max(0, incomingDamage);
+        if (runtimeTemporaryShield <= 0 || remainingDamage <= 0)
+        {
+            return remainingDamage;
+        }
+
+        int absorbedDamage = Mathf.Min(runtimeTemporaryShield, remainingDamage);
+        runtimeTemporaryShield -= absorbedDamage;
+        remainingDamage -= absorbedDamage;
+        return remainingDamage;
     }
 
     private int CalculateFinalDamage(float incomingDamage, int targetArmor, float penetrationPct, float penetrationFlat)
@@ -1097,7 +1181,14 @@ public sealed class UnitLogic : MonoBehaviour
 
         if (runtimeInBayonetMode)
         {
-            PerformBayonetAttack(currentTarget);
+            UnitLogic bayonetTarget = currentTarget;
+            bool canPerformBayonetAttack = bayonetTarget != null && bayonetTarget.IsAlive;
+            PerformBayonetAttack(bayonetTarget);
+            if (canPerformBayonetAttack)
+            {
+                BayonetAttackPerformed?.Invoke(this, bayonetTarget);
+            }
+
             attackCooldown = GetAttackInterval(bayonetSpeed);
             return;
         }
@@ -1108,7 +1199,14 @@ public sealed class UnitLogic : MonoBehaviour
             return;
         }
 
-        PerformFireAttack(currentTarget);
+        UnitLogic fireTarget = currentTarget;
+        bool canPerformFireAttack = fireTarget != null && fireTarget.IsAlive;
+        PerformFireAttack(fireTarget);
+        if (canPerformFireAttack)
+        {
+            FireAttackPerformed?.Invoke(this, fireTarget);
+        }
+
         runtimeCurrentAmmo -= Mathf.Max(1, runtimeAmmoSpeed);
         if (runtimeCurrentAmmo <= 0)
         {
@@ -1520,12 +1618,9 @@ public sealed class UnitLogic : MonoBehaviour
             return true;
         }
 
-        captureGridPosition = new Vector2Int(GameFlowManager.BoardWidth / 2, GameFlowManager.StrategicLineY);
+        captureGridPosition = BoardLayout.StrategicLineCenter;
         captureWorldPosition = new Vector3(captureGridPosition.x, captureGridPosition.y, transform.position.z);
-        return captureGridPosition.x >= 0
-            && captureGridPosition.x < GameFlowManager.BoardWidth
-            && captureGridPosition.y >= 0
-            && captureGridPosition.y < GameFlowManager.BoardHeight;
+        return BoardLayout.IsInsideBattlefield(captureGridPosition);
     }
 
     private void TickCaptureProgress()
@@ -1635,8 +1730,8 @@ public sealed class UnitLogic : MonoBehaviour
     {
         Vector3 minWorldPosition = new Vector3(0f, 0f, transform.position.z);
         Vector3 maxWorldPosition = new Vector3(
-            GameFlowManager.BoardWidth - 1f,
-            GameFlowManager.BoardHeight - 1f,
+            BoardLayout.BattlefieldWidth - 1f,
+            BoardLayout.BattlefieldHeight - 1f,
             transform.position.z);
 
         GridManager gridManager = GridManager.Instance;
@@ -1644,7 +1739,7 @@ public sealed class UnitLogic : MonoBehaviour
         {
             minWorldPosition = gridManager.GetBattlefieldWorldPosition(Vector2Int.zero, transform.position.z);
             maxWorldPosition = gridManager.GetBattlefieldWorldPosition(
-                new Vector2Int(GameFlowManager.BoardWidth - 1, GameFlowManager.BoardHeight - 1),
+                BoardLayout.BattlefieldMaxPosition,
                 transform.position.z);
         }
 
@@ -1683,6 +1778,7 @@ public sealed class UnitLogic : MonoBehaviour
         targetSearchCooldown = 0f;
         currentTarget = null;
         hasTriggeredBayonetContact = false;
+        runtimeTemporaryShield = 0;
     }
 
     private void Die(UnitLogic attacker)
@@ -1690,6 +1786,17 @@ public sealed class UnitLogic : MonoBehaviour
         runtimeCurrentHp = 0;
         isCombatEnabled = false;
         currentTarget = null;
+
+        UnitDied?.Invoke(this, attacker);
+        if (runtimeCurrentHp > 0)
+        {
+            return;
+        }
+
+        if (attacker != null && attacker != this && attacker.IsAlive)
+        {
+            UnitKilled?.Invoke(attacker, this);
+        }
 
         if (faction == UnitFaction.Player)
         {
@@ -1968,7 +2075,7 @@ public sealed class UnitLogic : MonoBehaviour
         return PlayerDirective.PushLine;
     }
 
-    private string StripStarSymbols(string value)
+    private static string StripStarSymbols(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -1978,7 +2085,7 @@ public sealed class UnitLogic : MonoBehaviour
         return value.Replace("★", string.Empty).Replace("*", string.Empty).Trim();
     }
 
-    private string StripTrailingTierDigit(string value)
+    private static string StripTrailingTierDigit(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length == 1)
         {

@@ -16,7 +16,6 @@ public class ShopManager : MonoBehaviour
     private const int UpgradeExpPerPurchase = 4;
 
     [Header("⚙️ Economy Settings")]
-    [SerializeField] private int initialFunds = 30;
     [SerializeField] private int refreshCost = 2;
 
     [Header("📊 Level & Cost Settings")]
@@ -33,7 +32,6 @@ public class ShopManager : MonoBehaviour
     private ShopManagerDataSO shopManagerData;
 
     [Header("Runtime Shop State")]
-    [SerializeField] private int funds;
     [SerializeField] private int level = 1;
     [SerializeField] private int currentExp;
     [SerializeField] private int currentTotalCost;
@@ -42,7 +40,7 @@ public class ShopManager : MonoBehaviour
     [SerializeField] private bool[] soldOutSlots = new bool[ShopSlotCount];
     [SerializeField] private bool isShopLocked;
 
-    public int Funds => funds;
+    public int Funds => GameFlowManager.Instance != null ? GameFlowManager.Instance.Funds : 0;
     public int Level => level;
     public int CurrentExp => currentExp;
     public int CurrentUpgradeExpRequirement => GetCurrentUpgradeExpRequirement();
@@ -54,7 +52,6 @@ public class ShopManager : MonoBehaviour
     public IReadOnlyList<bool> SoldOutSlots => soldOutSlots;
     public IReadOnlyDictionary<string, int> UnitRemainingCounts => unitRemainingCounts;
 
-    public event Action<int> FundsChanged;
     public event Action<int> LevelChanged;
     public event Action<int, int> ExpChanged;
     public event Action<int, int> CostChanged;
@@ -195,7 +192,6 @@ public class ShopManager : MonoBehaviour
             BuildSupplyPool();
         }
 
-        funds = Mathf.Max(0, initialFunds);
         level = 1;
         currentExp = 0;
         RefreshCurrentTotalCost();
@@ -212,9 +208,7 @@ public class ShopManager : MonoBehaviour
                 GameFlowManager.Instance.UpdatePopulationLimit(minimumCostLimit);
             }
 
-            funds = GameFlowManager.Instance.Funds; 
-
-           // 👇【亲手加上这三行：如果是全新开局没有老存档，强制把大管家初始化为商店的1级数值】
+            // 👇【亲手加上这三行：如果是全新开局没有老存档，强制把大管家初始化为商店的1级数值】
             if (!PlayerPrefs.HasKey("GameFlow.PopulationLimit"))
             {
                 GameFlowManager.Instance.UpdatePopulationLimit(maxCostLimits[0]);
@@ -237,7 +231,6 @@ public class ShopManager : MonoBehaviour
 
     private void OnValidate()
     {
-        initialFunds = Mathf.Max(0, initialFunds);
         refreshCost = Mathf.Max(0, refreshCost);
         EnsureFixedConfigArrays();
     }
@@ -293,7 +286,7 @@ public class ShopManager : MonoBehaviour
             return false;
         }
 
-        if (funds < unitData.unitPrice)
+        if (!CanAfford(unitData.unitPrice))
         {
             Debug.LogWarning("<color=orange>[商店拦截]</color> 资金不足，无法购买该单位。");
             return false;
@@ -305,7 +298,12 @@ public class ShopManager : MonoBehaviour
             return false;
         }
 
-        SpendFunds(unitData.unitPrice);
+        if (!SpendFunds(unitData.unitPrice))
+        {
+            ReturnUnitToPool(chessId);
+            Debug.LogWarning("<color=orange>[商店拦截]</color> 资金账本不可用，购买被取消。");
+            return false;
+        }
 
         UnitDataManager dataManager = GetUnitDataManagerInstance();
         UnitLogic unit = dataManager != null
@@ -349,13 +347,18 @@ public class ShopManager : MonoBehaviour
             return false;
         }
 
-        if (funds < refreshCost)
+        if (!CanAfford(refreshCost))
         {
             Debug.LogWarning("<color=orange>[刷新拦截]</color> 资金不足，无法刷新商店。");
             return false;
         }
 
-        SpendFunds(refreshCost);
+        if (!SpendFunds(refreshCost))
+        {
+            Debug.LogWarning("<color=orange>[刷新拦截]</color> 资金账本不可用，刷新被取消。");
+            return false;
+        }
+
         GenerateShopSlots();
         Debug.Log("<color=cyan>[刷新成功]</color> 已花费 " + refreshCost + " 刷新 5 个货架。");
         return true;
@@ -401,13 +404,18 @@ public class ShopManager : MonoBehaviour
             return false;
         }
 
-        if (funds < UpgradeExpPurchaseCost)
+        if (!CanAfford(UpgradeExpPurchaseCost))
         {
             Debug.LogWarning("<color=orange>[Shop Upgrade Blocked]</color> Buying exp requires " + UpgradeExpPurchaseCost + " funds.");
             return false;
         }
 
-        SpendFunds(UpgradeExpPurchaseCost);
+        if (!SpendFunds(UpgradeExpPurchaseCost))
+        {
+            Debug.LogWarning("<color=orange>[Shop Upgrade Blocked]</color> Funds ledger is unavailable.");
+            return false;
+        }
+
         currentExp += UpgradeExpPerPurchase;
 
         bool leveledUp = false;
@@ -460,13 +468,18 @@ public class ShopManager : MonoBehaviour
 
         int costIndex = level - 1;
         int upgradeCost = upgradeLevelCosts[costIndex];
-        if (funds < upgradeCost)
+        if (!CanAfford(upgradeCost))
         {
             Debug.LogWarning("<color=orange>[升级拦截]</color> 资金不足，升级需要 " + upgradeCost + "。");
             return false;
         }
 
-        SpendFunds(upgradeCost);
+        if (!SpendFunds(upgradeCost))
+        {
+            Debug.LogWarning("<color=orange>[升级拦截]</color> 资金账本不可用，升级被取消。");
+            return false;
+        }
+
         level++;
         // 🔗 【新增同步】升级成功后，立刻把下一档的 Cost 上限同步给大管家归档
         if (GameFlowManager.Instance != null)
@@ -567,13 +580,18 @@ public class ShopManager : MonoBehaviour
             repairCost = Mathf.CeilToInt(unit.unitPrice * ((float)(unit.maxHp - unit.currentHp) / unit.maxHp));
         }
 
-        if (funds < repairCost)
+        if (!CanAfford(repairCost))
         {
             Debug.LogWarning("<color=orange>[修理拦截]</color> 资金不足，修理需要 " + repairCost + "。");
             return false;
         }
 
-        SpendFunds(repairCost);
+        if (!SpendFunds(repairCost))
+        {
+            Debug.LogWarning("<color=orange>[修理拦截]</color> 资金账本不可用，修理被取消。");
+            return false;
+        }
+
         if (!unit.gameObject.activeSelf)
         {
             unit.gameObject.SetActive(true);
@@ -843,7 +861,7 @@ public class ShopManager : MonoBehaviour
     private void RefreshShopFree()
     {
         GenerateShopSlots();
-        Debug.Log("<color=cyan>[商店初始化]</color> 初始货架已生成，当前资金 " + funds + "。");
+        Debug.Log("<color=cyan>[商店初始化]</color> 初始货架已生成，当前资金 " + Funds + "。");
     }
 
     private void GenerateShopSlots()
@@ -987,6 +1005,17 @@ public class ShopManager : MonoBehaviour
         return flowManager == null || flowManager.CurrentState == GameState.Intermission;
     }
 
+    private bool CanAfford(int amount)
+    {
+        if (amount <= 0)
+        {
+            return true;
+        }
+
+        GameFlowManager flowManager = GameFlowManager.Instance;
+        return flowManager != null && flowManager.Funds >= amount;
+    }
+
     private bool IsUnitOnBattlefield(UnitLogic unit)
     {
         GridManager gridManager = GridManager.Instance;
@@ -1052,33 +1081,29 @@ public class ShopManager : MonoBehaviour
             return;
         }
 
-        funds += amount;
-
-        // 🔗 【精准对接】同步让全局大管家增加入账
         if (GameFlowManager.Instance != null)
         {
             GameFlowManager.Instance.AddFunds(amount);
-        }
-
-        FundsChanged?.Invoke(funds);
-    }
-
-    private void SpendFunds(int amount)
-    {
-        if (amount <= 0)
-        {
             return;
         }
 
-        funds -= amount;
+        Debug.LogWarning("<color=orange>[资金警告]</color> 找不到 GameFlowManager，无法增加资金。");
+    }
 
-        // 🔗 【精准对接】同步让全局大管家扣除开销
-        if (GameFlowManager.Instance != null)
+    private bool SpendFunds(int amount)
+    {
+        if (amount <= 0)
         {
-            GameFlowManager.Instance.TrySpendFunds(amount);
+            return true;
         }
 
-        FundsChanged?.Invoke(funds);
+        if (GameFlowManager.Instance != null)
+        {
+            return GameFlowManager.Instance.TrySpendFunds(amount);
+        }
+
+        Debug.LogWarning("<color=orange>[资金警告]</color> 找不到 GameFlowManager，无法扣除资金。");
+        return false;
     }
 
     private void EnsureFixedConfigArrays()

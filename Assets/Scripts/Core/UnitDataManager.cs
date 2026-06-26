@@ -8,6 +8,8 @@ using UnityEditor;
 
 public class UnitDataManager : MonoBehaviour
 {
+    private static readonly char[] TraitIdSeparators = { ',', ';', '|', '/', '\uFF0C', '\uFF1B', '\u3001' };
+
     public static UnitDataManager Instance { get; private set; }
 
     [Header("Standard Unit Factory")]
@@ -96,6 +98,36 @@ public class UnitDataManager : MonoBehaviour
         return unitDataDict.TryGetValue(chessId, out unitData);
     }
 
+    public bool UnitDataHasTrait(UnitLogicDataSO unitData, TraitSO trait)
+    {
+        if (unitData == null || trait == null || string.IsNullOrWhiteSpace(unitData.unionId))
+        {
+            return false;
+        }
+
+        if (traitDict.Count == 0)
+        {
+            InitializeData();
+        }
+
+        string[] ids = unitData.unionId.Split(TraitIdSeparators, StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < ids.Length; i++)
+        {
+            string id = ids[i].Trim();
+            if (string.IsNullOrEmpty(id))
+            {
+                continue;
+            }
+
+            if (traitDict.TryGetValue(id, out TraitSO matchedTrait) && matchedTrait == trait)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void LoadUnitDataAssets()
     {
         UnitLogicDataSO[] unitAssets = Resources.LoadAll<UnitLogicDataSO>("Units/DataAssets");
@@ -150,6 +182,7 @@ public class UnitDataManager : MonoBehaviour
         }
 
         AddTraitKey(trait.name, trait);
+        AddTraitKey(ReadTraitStringMember(trait, "unionId"), trait);
         AddTraitKey(ReadTraitStringMember(trait, "traitId"), trait);
         AddTraitKey(ReadTraitStringMember(trait, "id"), trait);
         AddTraitKey(ReadTraitStringMember(trait, "traitName"), trait);
@@ -229,7 +262,7 @@ public class UnitDataManager : MonoBehaviour
             return resolvedTraits;
         }
 
-        string[] ids = unionId.Split(new[] { ',', '，', ';', '；', '|', '/', '、' }, StringSplitOptions.RemoveEmptyEntries);
+        string[] ids = unionId.Split(TraitIdSeparators, StringSplitOptions.RemoveEmptyEntries);
         for (int i = 0; i < ids.Length; i++)
         {
             string id = ids[i].Trim();

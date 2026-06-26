@@ -1,0 +1,11 @@
+SkillID,TargetType,TriggerType,EffectType,EffectParams,,,,TargetType,,,,TriggerType,,,EffectTpye,,EffectParams
+技能ID,目标范围,触发时机,效果类型,效果参数,,,,101,自身,这会以受益单位的属性来算,,1,战斗开始时,,100,,{属性名，数值，持续时间（-1代表永久生效）}
+S10000,102,1,101,"{BaseArmor,5,-1}",,,,102,全体部署单位,,,"2,N",每N秒触发一次,,101,修改属性,BaseArmor；BayonetArmor；CritRate ；CritDamage ；FireDamage；FireRate；FireSpeed；FireRange；AmmoSpeed；FirePenPct；FirePenFlat；DamageAoe；BayonetDamage；BayonetSpeed；BayonetPenPct；BayonetPenFlat；MoveSpeed；CaptureSpeed；ThreatValue
+S10001,103,1,101,"{BaseArmor,10,-1}",,,,103,拥有对应羁绊ID的所有友军,,,3,死亡时,,102,资源恢复,BaseHp；Ammo;
+S10002,103,1,101,"{BaseArmor,15,-1}",,,,104,全体召唤单位,,,4,受到伤害时,,200,,{属性与数值的公式}如果只有数值那就是固定伤害，属性只与发动这个技能的单位有关
+,,,,,,,,105,全体我方单位（部署单位+召唤单位）,,,"5,N",每N次射击触发一次,,201,造成一个火力伤害,
+,,,,,,,,111,自身周围1格的友军单位,这会以发起技能的单位属性来算,,6,击杀时,,202,造成一个白刃伤害,
+,,,,,,,,121,最近的一位友军,,,"7,N",每N此白刃触发一次,,300,机制类,每个需要单独定制一套配置方法，涉及属性只与发动这个技能的单位有关
+,,,,,,,,131,随机一位友军,,,,,,,生成一个临时护盾,"{Shield,100,10}"
+,,,,,,,,201,正在攻击的目标,,,,,,,召唤单位,"{Summon,A10001,1}"
+,,,,,,,,202,所有敌军,,,,,,,复活单位,"{Revive,100,0}"
